@@ -6,7 +6,7 @@ import PhoneLink
 
 /// Receives app TCP flows from macOS and relays each one to the iPhone's SOCKS5 proxy.
 final class TransparentProxyProvider: NETransparentProxyProvider {
-  private let logger = Logger(subsystem: "com.suyeol.nothering.macos", category: "proxy")
+  private let logger = Logger(subsystem: "app.nothering", category: "proxy")
   private static let phonePort: UInt16 = 11080
 
   override func startProxy(options: [String: Any]? = nil, completionHandler: @escaping (Error?) -> Void) {

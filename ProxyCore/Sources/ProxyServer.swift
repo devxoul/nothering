@@ -42,8 +42,8 @@ public final class ProxyServer {
   }
 
   let configuration: Configuration
-  let queue = DispatchQueue(label: "com.suyeol.nothering.proxy")
-  let logger = Logger(subsystem: "com.suyeol.nothering", category: "proxy")
+  let queue = DispatchQueue(label: "app.nothering.proxy")
+  let logger = Logger(subsystem: "app.nothering", category: "proxy")
   private var listener: SocketListener?
   private var sessions: [ObjectIdentifier: Session] = [:]
   private var stats = Stats()

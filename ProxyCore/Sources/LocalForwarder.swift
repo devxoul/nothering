@@ -7,8 +7,8 @@ import os
 public final class LocalForwarder {
   private let port: UInt16
   private let connectUpstream: () throws -> Int32
-  private let queue = DispatchQueue(label: "com.suyeol.nothering.forwarder")
-  private let logger = Logger(subsystem: "com.suyeol.nothering", category: "forwarder")
+  private let queue = DispatchQueue(label: "app.nothering.forwarder")
+  private let logger = Logger(subsystem: "app.nothering", category: "forwarder")
   private var listener: SocketListener?
   private var relays: [ObjectIdentifier: Relay] = [:]
 
