@@ -100,6 +100,7 @@ let project = Project(
       bundleId: "\(bundleIDPrefix).macos.proxy",
       deploymentTargets: .macOS("15.0"),
       infoPlist: .extendingDefault(with: [
+        "NSSystemExtensionUsageDescription": "Nothering routes your Mac's network connections through your iPhone.",
         "NetworkExtension": [
           "NEMachServiceName": "$(TeamIdentifierPrefix)com.suyeol.nothering.macos.proxy",
           "NEProviderClasses": [
