@@ -1,7 +1,7 @@
 import ProjectDescription
 
 let teamID = "N2C267LBVY"
-let bundleIDPrefix = "com.suyeol.nothering"
+let bundleIDPrefix = "app.nothering"
 
 let baseSettings: SettingsDictionary = [
   "DEVELOPMENT_TEAM": .string(teamID),
@@ -39,7 +39,7 @@ let project = Project(
       destinations: [.iPhone],
       product: .app,
       productName: "Nothering",
-      bundleId: bundleIDPrefix,
+      bundleId: "\(bundleIDPrefix).ios",
       deploymentTargets: .iOS("18.0"),
       infoPlist: .extendingDefault(with: localNetworkUsage.merging([
         "CFBundleDisplayName": "Nothering",
@@ -71,7 +71,7 @@ let project = Project(
       destinations: [.mac],
       product: .commandLineTool,
       productName: "nothering",
-      bundleId: "\(bundleIDPrefix).mac",
+      bundleId: "\(bundleIDPrefix).cli",
       deploymentTargets: .macOS("15.0"),
       sources: ["Mac/Sources/**"],
       dependencies: [.target(name: "ProxyCore"), .target(name: "PhoneLink")]
@@ -81,7 +81,7 @@ let project = Project(
       destinations: [.mac],
       product: .app,
       productName: "Nothering",
-      bundleId: "\(bundleIDPrefix).macos",
+      bundleId: "\(bundleIDPrefix).mac",
       deploymentTargets: .macOS("15.0"),
       infoPlist: .extendingDefault(with: [
         "CFBundleDisplayName": "Nothering",
@@ -96,13 +96,13 @@ let project = Project(
       name: "NotheringProxyExtension",
       destinations: [.mac],
       product: .systemExtension,
-      productName: "\(bundleIDPrefix).macos.proxy",
-      bundleId: "\(bundleIDPrefix).macos.proxy",
+      productName: "\(bundleIDPrefix).mac.proxy",
+      bundleId: "\(bundleIDPrefix).mac.proxy",
       deploymentTargets: .macOS("15.0"),
       infoPlist: .extendingDefault(with: [
         "NSSystemExtensionUsageDescription": "Nothering routes your Mac's network connections through your iPhone.",
         "NetworkExtension": [
-          "NEMachServiceName": "$(TeamIdentifierPrefix)com.suyeol.nothering.macos.proxy",
+          "NEMachServiceName": "$(TeamIdentifierPrefix)app.nothering.mac.proxy",
           "NEProviderClasses": [
             "com.apple.networkextension.app-proxy": "$(PRODUCT_MODULE_NAME).TransparentProxyProvider",
           ],

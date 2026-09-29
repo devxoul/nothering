@@ -8,7 +8,7 @@ import SystemExtensions
 @MainActor
 @Observable
 final class ExtensionController: NSObject {
-  static let extensionIdentifier = "com.suyeol.nothering.macos.proxy"
+  static let extensionIdentifier = "app.nothering.mac.proxy"
 
   private(set) var status = "Off"
   private(set) var isRunning = false
