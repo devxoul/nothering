@@ -22,6 +22,9 @@ final class SocketListener {
       let size = socklen_t(MemoryLayout<Int32>.size)
       setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &off, size)
       setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, size)
+      // SO_RECV_ANYIF (private, <sys/socket.h>): without it the kernel drops inbound SYNs arriving on
+      // restricted-receive interfaces such as the Personal Hotspot link.
+      setsockopt(fd, SOL_SOCKET, 0x1104, &on, size)
 
       var address = sockaddr_in6()
       address.sin6_len = UInt8(MemoryLayout<sockaddr_in6>.size)
