@@ -21,12 +21,12 @@ final class TransparentProxyProvider: NETransparentProxyProvider {
 
   override func startProxy(options: [String: Any]? = nil, completionHandler: @escaping (Error?) -> Void) {
     let settings = NETransparentProxyNetworkSettings(tunnelRemoteAddress: "127.0.0.1")
-    settings.includedNetworkRules = ["0.0.0.0", "::"].map { address in
+    settings.includedNetworkRules = [
       NENetworkRule(
-        remoteNetworkEndpoint: .hostPort(host: Network.NWEndpoint.Host(address), port: 0), remotePrefix: 0,
+        remoteNetworkEndpoint: nil, remotePrefix: 0,
         localNetworkEndpoint: nil, localPrefix: 0, protocol: .TCP, direction: .outbound
-      )
-    }
+      ),
+    ]
     settings.excludedNetworkRules = Self.excludedNetworks.map { address, prefix in
       NENetworkRule(
         remoteNetworkEndpoint: .hostPort(host: Network.NWEndpoint.Host(address), port: 0), remotePrefix: prefix,
