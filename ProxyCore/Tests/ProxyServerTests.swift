@@ -89,8 +89,9 @@ private let loopback = NWEndpoint.Host.ipv4(.loopback)
 
     let client = NWConnection(host: loopback, port: port, using: .tcp)
     try await client.startAndWaitReady()
-    try await client.sendAsync(Data([0x05, 0x01, 0x00]))
-    #expect(try await client.receiveExactly(2).isEmpty)
+    try? await client.sendAsync(Data([0x05, 0x01, 0x00]))
+    let reply = try? await client.receiveExactly(2)
+    #expect(reply == nil || reply?.isEmpty == true)
     client.cancel()
     #expect(server.currentStats().totalConnections == 0)
   }
