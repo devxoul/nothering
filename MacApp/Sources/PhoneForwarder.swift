@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import Network
 import Observation
 import PhoneLink
 import ProxyCore
@@ -22,6 +23,7 @@ final class PhoneForwarder {
   private var forwarder: LocalForwarder?
   private var monitor: Timer?
   private let route = PhoneRoute()
+  private let pathMonitor = NWPathMonitor()
 
   func start() {
     let route = route
@@ -36,6 +38,10 @@ final class PhoneForwarder {
     monitor = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
       MainActor.assumeIsolated { self?.refreshLink() }
     }
+    pathMonitor.pathUpdateHandler = { [weak self] _ in
+      Task { @MainActor in self?.refreshLink() }
+    }
+    pathMonitor.start(queue: .global())
   }
 
   /// Re-detects the link. Probing the hotspot also serves as the keepalive iOS needs to not drop
