@@ -10,7 +10,7 @@ import Testing
     let port = try await server.start().rawValue
     defer { server.stop() }
 
-    let fd = try Hotspot.connect(host: "127.0.0.1", port: port)
+    let fd = try TCP.connect(host: "127.0.0.1", port: port)
     defer { close(fd) }
     try SOCKS5.connect(fd, host: "127.0.0.1", port: port)
   }
@@ -20,7 +20,7 @@ import Testing
     let port = try await server.start().rawValue
     defer { server.stop() }
 
-    let fd = try Hotspot.connect(host: "127.0.0.1", port: port)
+    let fd = try TCP.connect(host: "127.0.0.1", port: port)
     defer { close(fd) }
     #expect(throws: LinkError.self) { try SOCKS5.connect(fd, host: "127.0.0.1", port: 1) }
   }

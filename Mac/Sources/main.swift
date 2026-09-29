@@ -57,7 +57,7 @@ if via == "usb" || (via == "auto" && host == nil), let deviceID = try? USBMux.fi
     fail(error.localizedDescription)
   }
   keepaliveTarget = phone
-  connectUpstream = { try Hotspot.connect(host: phone, port: remotePort) }
+  connectUpstream = { try TCP.connect(host: phone, port: remotePort) }
 }
 
 do {
@@ -107,7 +107,7 @@ if let keepaliveTarget {
   timer.schedule(deadline: .now() + 10, repeating: 10)
   timer.setEventHandler {
     do {
-      Darwin.close(try Hotspot.connect(host: keepaliveTarget, port: remotePort))
+      Darwin.close(try TCP.connect(host: keepaliveTarget, port: remotePort))
     } catch {
       FileHandle.standardError.write(Data("nothering: keepalive failed: \(error.localizedDescription)\n".utf8))
     }
