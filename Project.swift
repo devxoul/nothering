@@ -47,24 +47,6 @@ let project = Project(
         "UIBackgroundModes": ["audio"],
       ]) { $1 }),
       sources: ["iOS/App/**"],
-      entitlements: "iOS/App.entitlements",
-      dependencies: [.target(name: "NotheringTunnel"), .target(name: "ProxyCore")]
-    ),
-    .target(
-      name: "NotheringTunnel",
-      destinations: [.iPhone],
-      product: .appExtension,
-      bundleId: "\(bundleIDPrefix).tunnel",
-      deploymentTargets: .iOS("18.0"),
-      infoPlist: .extendingDefault(with: localNetworkUsage.merging([
-        "CFBundleDisplayName": "Nothering Tunnel",
-        "NSExtension": [
-          "NSExtensionPointIdentifier": "com.apple.networkextension.packet-tunnel",
-          "NSExtensionPrincipalClass": "$(PRODUCT_MODULE_NAME).PacketTunnelProvider",
-        ],
-      ]) { $1 }),
-      sources: ["iOS/Tunnel/**"],
-      entitlements: "iOS/Tunnel.entitlements",
       dependencies: [.target(name: "ProxyCore")]
     ),
   ]
