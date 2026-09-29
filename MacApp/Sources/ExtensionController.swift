@@ -31,9 +31,17 @@ final class ExtensionController: NSObject {
 
   func toggle() async {
     if isRunning {
-      manager?.connection.stopVPNTunnel()
-      return
+      turnOff()
+    } else {
+      await turnOn()
     }
+  }
+
+  func turnOff() {
+    manager?.connection.stopVPNTunnel()
+  }
+
+  func turnOn() async {
     do {
       let manager = try await configuredManager()
       try manager.connection.startVPNTunnel()
@@ -98,7 +106,10 @@ extension ExtensionController: OSSystemExtensionRequestDelegate {
   }
 
   nonisolated func request(_ request: OSSystemExtensionRequest, didFinishWithResult result: OSSystemExtensionRequest.Result) {
-    Task { @MainActor in status = "Extension installed" }
+    Task { @MainActor in
+      status = "Off"
+      refreshStatus()
+    }
   }
 
   nonisolated func request(_ request: OSSystemExtensionRequest, didFailWithError error: Error) {

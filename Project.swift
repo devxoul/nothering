@@ -86,6 +86,7 @@ let project = Project(
       infoPlist: .extendingDefault(with: [
         "CFBundleDisplayName": "Nothering",
         "LSUIElement": true,
+        "CFBundleURLTypes": [["CFBundleURLName": "app.nothering.mac", "CFBundleURLSchemes": ["nothering"]]],
       ]),
       sources: ["MacApp/Sources/**"],
       entitlements: "MacApp/App.entitlements",
