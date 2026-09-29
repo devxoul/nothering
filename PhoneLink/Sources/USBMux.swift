@@ -2,8 +2,8 @@ import Darwin
 import Foundation
 
 /// Minimal client for macOS `usbmuxd`, which tunnels TCP connections to ports on a USB-attached iPhone.
-enum USBMux {
-  static func firstUSBDeviceID() throws -> Int {
+public enum USBMux {
+  public static func firstUSBDeviceID() throws -> Int {
     let fd = try openSocket()
     defer { Darwin.close(fd) }
     let reply = try exchange(fd, ["MessageType": "ListDevices"])
@@ -13,11 +13,11 @@ enum USBMux {
         return id
       }
     }
-    throw CLIError("no iPhone connected over USB")
+    throw LinkError("no iPhone connected over USB")
   }
 
   /// Returns a socket connected to `port` on the device; after the handshake it is a plain byte stream.
-  static func connect(deviceID: Int, port: UInt16) throws -> Int32 {
+  public static func connect(deviceID: Int, port: UInt16) throws -> Int32 {
     let fd = try openSocket()
     do {
       let reply = try exchange(fd, [
@@ -26,7 +26,7 @@ enum USBMux {
         "PortNumber": Int(port.byteSwapped),
       ])
       guard reply["Number"] as? Int == 0 else {
-        throw CLIError("iPhone refused port \(port) over USB (usbmux result \(reply["Number"] ?? "?")). Is Nothering running?")
+        throw LinkError("iPhone refused port \(port) over USB (usbmux result \(reply["Number"] ?? "?")). Is Nothering running?")
       }
       return fd
     } catch {
@@ -37,7 +37,7 @@ enum USBMux {
 
   private static func openSocket() throws -> Int32 {
     let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-    guard fd >= 0 else { throw CLIError("socket: \(String(cString: strerror(errno)))") }
+    guard fd >= 0 else { throw LinkError("socket: \(String(cString: strerror(errno)))") }
     var address = sockaddr_un()
     address.sun_family = sa_family_t(AF_UNIX)
     withUnsafeMutableBytes(of: &address.sun_path) { buffer in
@@ -48,7 +48,7 @@ enum USBMux {
     }
     guard result == 0 else {
       Darwin.close(fd)
-      throw CLIError("cannot reach usbmuxd: \(String(cString: strerror(errno)))")
+      throw LinkError("cannot reach usbmuxd: \(String(cString: strerror(errno)))")
     }
     return fd
   }
@@ -66,7 +66,7 @@ enum USBMux {
     let length = replyHeader.withUnsafeBytes { UInt32(littleEndian: $0.loadUnaligned(as: UInt32.self)) }
     let body = try readExactly(fd, Int(length) - 16)
     guard let reply = try PropertyListSerialization.propertyList(from: body, format: nil) as? [String: Any] else {
-      throw CLIError("unexpected usbmuxd reply")
+      throw LinkError("unexpected usbmuxd reply")
     }
     return reply
   }
@@ -75,7 +75,7 @@ enum USBMux {
     var offset = 0
     while offset < data.count {
       let written = data.withUnsafeBytes { Darwin.write(fd, $0.baseAddress! + offset, data.count - offset) }
-      guard written > 0 else { throw CLIError("usbmuxd write: \(String(cString: strerror(errno)))") }
+      guard written > 0 else { throw LinkError("usbmuxd write: \(String(cString: strerror(errno)))") }
       offset += written
     }
   }
@@ -85,7 +85,7 @@ enum USBMux {
     var offset = 0
     while offset < count {
       let received = data.withUnsafeMutableBytes { Darwin.read(fd, $0.baseAddress! + offset, count - offset) }
-      guard received > 0 else { throw CLIError("usbmuxd closed the connection") }
+      guard received > 0 else { throw LinkError("usbmuxd closed the connection") }
       offset += received
     }
     return data

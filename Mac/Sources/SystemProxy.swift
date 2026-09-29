@@ -1,4 +1,5 @@
 import Foundation
+import PhoneLink
 
 /// Points macOS's SOCKS proxy setting at the local forwarder and restores the previous settings.
 ///
