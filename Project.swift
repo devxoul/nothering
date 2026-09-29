@@ -47,7 +47,7 @@ let project = Project(
             ]) { $1 }),
             sources: ["iOS/App/**"],
             entitlements: "iOS/App.entitlements",
-            dependencies: [.target(name: "NotheringTunnel")]
+            dependencies: [.target(name: "NotheringTunnel"), .target(name: "ProxyCore")]
         ),
         .target(
             name: "NotheringTunnel",
