@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import Network
 import os
@@ -9,16 +10,17 @@ public final class ProxyServer {
     public var port: NWEndpoint.Port
     /// Pin outbound connections to an interface type (e.g. `.cellular`). `nil` = system default.
     public var requiredInterfaceType: NWInterface.InterfaceType?
-    public var isClientAllowed: (NWEndpoint) -> Bool
+    /// Decides by the name of the local interface a client connected through (e.g. `bridge100`).
+    public var isInterfaceAllowed: (String) -> Bool
 
     public init(
       port: NWEndpoint.Port = 11080,
       requiredInterfaceType: NWInterface.InterfaceType? = .cellular,
-      isClientAllowed: @escaping (NWEndpoint) -> Bool = ProxyServer.isHotspotOrLoopbackClient
+      isInterfaceAllowed: @escaping (String) -> Bool = ProxyServer.isHotspotOrLoopbackInterface
     ) {
       self.port = port
       self.requiredInterfaceType = requiredInterfaceType
-      self.isClientAllowed = isClientAllowed
+      self.isInterfaceAllowed = isInterfaceAllowed
     }
   }
 
@@ -31,22 +33,18 @@ public final class ProxyServer {
     public init() {}
   }
 
-  public enum StartError: LocalizedError {
-    case listenerFailed(NWError)
-    case cancelled
+  public struct StartError: LocalizedError {
+    let underlying: Error
 
     public var errorDescription: String? {
-      switch self {
-      case let .listenerFailed(error): "Proxy listener failed: \(error.localizedDescription)"
-      case .cancelled: "Proxy listener was cancelled"
-      }
+      "Proxy listener failed: \(underlying.localizedDescription)"
     }
   }
 
   let configuration: Configuration
   let queue = DispatchQueue(label: "com.suyeol.nothering.proxy")
   let logger = Logger(subsystem: "com.suyeol.nothering", category: "proxy")
-  private var listener: NWListener?
+  private var listener: SocketListener?
   private var sessions: [ObjectIdentifier: Session] = [:]
   private var stats = Stats()
 
@@ -54,32 +52,18 @@ public final class ProxyServer {
     self.configuration = configuration
   }
 
-  /// Starts listening and returns the bound port once the listener is ready.
+  /// Starts listening on all interfaces and returns the bound port.
   @discardableResult
   public func start() async throws -> NWEndpoint.Port {
-    let listener = try NWListener(using: .tcp, on: configuration.port)
-    self.listener = listener
-    listener.newConnectionHandler = { [weak self] connection in
-      self?.accept(connection)
-    }
-    return try await withCheckedThrowingContinuation { continuation in
-      listener.stateUpdateHandler = { [weak self] state in
-        switch state {
-        case .ready:
-          listener.stateUpdateHandler = nil
-          self?.logger.info("listening on \(listener.port?.debugDescription ?? "?", privacy: .public)")
-          continuation.resume(returning: listener.port ?? self?.configuration.port ?? 0)
-        case let .failed(error):
-          listener.stateUpdateHandler = nil
-          continuation.resume(throwing: StartError.listenerFailed(error))
-        case .cancelled:
-          listener.stateUpdateHandler = nil
-          continuation.resume(throwing: StartError.cancelled)
-        default:
-          break
-        }
+    do {
+      let listener = try SocketListener(port: configuration.port.rawValue, queue: queue) { [weak self] fd, interface in
+        self?.accept(fd, interface: interface)
       }
-      listener.start(queue: queue)
+      self.listener = listener
+      logger.info("listening on port \(listener.port)")
+      return NWEndpoint.Port(rawValue: listener.port)!
+    } catch {
+      throw StartError(underlying: error)
     }
   }
 
@@ -98,13 +82,14 @@ public final class ProxyServer {
     queue.sync { stats }
   }
 
-  private func accept(_ connection: NWConnection) {
-    guard configuration.isClientAllowed(connection.endpoint) else {
-      logger.notice("rejected client \(connection.endpoint.debugDescription, privacy: .public)")
-      connection.cancel()
+  private func accept(_ fd: Int32, interface: String?) {
+    guard let interface, configuration.isInterfaceAllowed(interface) else {
+      logger.notice("rejected client on interface \(interface ?? "unknown", privacy: .public)")
+      Darwin.close(fd)
       return
     }
-    let session = Session(client: connection, server: self)
+    logger.info("accepted client on interface \(interface, privacy: .public)")
+    let session = Session(client: SocketStream(fd: fd, queue: queue), server: self)
     sessions[ObjectIdentifier(session)] = session
     stats.activeConnections += 1
     stats.totalConnections += 1
@@ -129,52 +114,35 @@ public final class ProxyServer {
 
   // MARK: Client allowlist
 
-  /// Allows loopback and iPhone Personal Hotspot clients (172.20.10.0/28) only, so the proxy
-  /// is never reachable from an arbitrary Wi-Fi network the phone happens to be on.
-  public static func isHotspotOrLoopbackClient(_ endpoint: NWEndpoint) -> Bool {
-    guard case let .hostPort(host, _) = endpoint else { return false }
-    switch host {
-    case let .ipv4(address):
-      let bytes = [UInt8](address.rawValue)
-      return bytes[0] == 127 || (bytes[0] == 172 && bytes[1] == 20 && bytes[2] == 10 && bytes[3] < 16)
-    case let .ipv6(address):
-      return address == .loopback
-    default:
-      return false
-    }
+  /// Allows loopback and Personal Hotspot (`bridge*`) clients only, so the proxy is never
+  /// reachable from an arbitrary Wi-Fi network or cellular peer.
+  public static func isHotspotOrLoopbackInterface(_ name: String) -> Bool {
+    name == "lo0" || name.hasPrefix("bridge")
   }
 }
 
 // MARK: - Session
 
 final class Session {
-  private let client: NWConnection
+  private let client: ByteStream
   private var upstream: NWConnection?
   private unowned let server: ProxyServer
   private var replied = false
   private var finishedDirections = 0
   private var closed = false
 
-  init(client: NWConnection, server: ProxyServer) {
+  init(client: ByteStream, server: ProxyServer) {
     self.client = client
     self.server = server
   }
 
   func start() {
-    client.stateUpdateHandler = { [self] state in
-      switch state {
-      case .failed, .cancelled: close()
-      default: break
-      }
-    }
-    client.start(queue: server.queue)
     readGreeting()
   }
 
   func close() {
     guard !closed else { return }
     closed = true
-    client.stateUpdateHandler = nil
     upstream?.stateUpdateHandler = nil
     client.cancel()
     upstream?.cancel()
@@ -188,12 +156,12 @@ final class Session {
       guard header[0] == 0x05 else { return close() }
       read(Int(header[1])) { [self] methods in
         guard methods.contains(0x00) else {
-          client.send(content: Data([0x05, 0xFF]), completion: .contentProcessed { [self] _ in close() })
+          client.write(Data([0x05, 0xFF])) { [self] _ in close() }
           return
         }
-        client.send(content: Data([0x05, 0x00]), completion: .contentProcessed { [self] error in
+        client.write(Data([0x05, 0x00])) { [self] error in
           error == nil ? readRequest() : close()
-        })
+        }
       }
     }
   }
@@ -256,11 +224,11 @@ final class Session {
     guard !replied else { return }
     replied = true
     let message = Data([0x05, code, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
-    client.send(content: message, completion: .contentProcessed { [self] error in
+    client.write(message) { [self] error in
       guard code == 0x00, error == nil, let upstream else { return close() }
       pump(from: client, to: upstream, isUpstream: true)
       pump(from: upstream, to: client, isUpstream: false)
-    })
+    }
   }
 
   static func replyCode(for error: NWError) -> UInt8 {
@@ -275,15 +243,15 @@ final class Session {
 
   // MARK: Relay
 
-  private func pump(from source: NWConnection, to destination: NWConnection, isUpstream: Bool) {
-    source.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { [self] data, _, isComplete, error in
+  private func pump(from source: ByteStream, to destination: ByteStream, isUpstream: Bool) {
+    source.read(minimum: 1, maximum: 64 * 1024) { [self] data, isComplete, error in
       guard !closed else { return }
       if let data, !data.isEmpty {
         server.record(bytes: data.count, upstream: isUpstream)
-        destination.send(content: data, completion: .contentProcessed { [self] sendError in
-          guard sendError == nil else { return close() }
+        destination.write(data) { [self] writeError in
+          guard writeError == nil else { return close() }
           isComplete ? finish(destination) : pump(from: source, to: destination, isUpstream: isUpstream)
-        })
+        }
       } else if isComplete {
         finish(destination)
       } else if error != nil {
@@ -293,15 +261,15 @@ final class Session {
   }
 
   /// Propagates EOF (half-close) and tears down once both directions are done.
-  private func finish(_ destination: NWConnection) {
-    destination.send(content: nil, contentContext: .finalMessage, isComplete: true, completion: .idempotent)
+  private func finish(_ destination: ByteStream) {
+    destination.writeEOF()
     finishedDirections += 1
     if finishedDirections == 2 { close() }
   }
 
   private func read(_ count: Int, _ completion: @escaping (Data) -> Void) {
     guard count > 0 else { return completion(Data()) }
-    client.receive(minimumIncompleteLength: count, maximumLength: count) { [self] data, _, _, error in
+    client.read(minimum: count, maximum: count) { [self] data, _, error in
       guard !closed else { return }
       guard error == nil, let data, data.count == count else { return close() }
       completion(Data(data))

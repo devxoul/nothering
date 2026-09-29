@@ -72,18 +72,54 @@ private let loopback = NWEndpoint.Host.ipv4(.loopback)
   }
 
   @Test(arguments: [
-    ("127.0.0.1", true),
-    ("172.20.10.2", true),
-    ("172.20.10.15", true),
-    ("172.20.10.16", false),
-    ("192.168.0.10", false),
-    ("::1", true),
-    ("fe80::1", false),
+    ("lo0", true),
+    ("bridge100", true),
+    ("en0", false),
+    ("pdp_ip0", false),
+    ("utun3", false),
   ])
-  func allowsOnlyHotspotOrLoopbackClients(address: String, allowed: Bool) {
-    let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(address), port: 50000)
-    #expect(ProxyServer.isHotspotOrLoopbackClient(endpoint) == allowed)
+  func allowsOnlyHotspotOrLoopbackInterfaces(name: String, allowed: Bool) {
+    #expect(ProxyServer.isHotspotOrLoopbackInterface(name) == allowed)
   }
+
+  @Test func rejectsClientsOnDisallowedInterfaces() async throws {
+    let server = ProxyServer(configuration: .init(port: .any, requiredInterfaceType: nil, isInterfaceAllowed: { _ in false }))
+    let port = try await server.start()
+    defer { server.stop() }
+
+    let client = NWConnection(host: loopback, port: port, using: .tcp)
+    try await client.startAndWaitReady()
+    try await client.sendAsync(Data([0x05, 0x01, 0x00]))
+    #expect(try await client.receiveExactly(2).isEmpty)
+    client.cancel()
+    #expect(server.currentStats().totalConnections == 0)
+  }
+
+  @Test func resolvesLoopbackInterfaceForAcceptedClients() async throws {
+    let recorded = RecordedInterfaces()
+    let server = ProxyServer(configuration: .init(port: .any, requiredInterfaceType: nil, isInterfaceAllowed: {
+      recorded.append($0)
+      return true
+    }))
+    let port = try await server.start()
+    defer { server.stop() }
+
+    for host in [loopback, NWEndpoint.Host.ipv6(.loopback)] {
+      let client = NWConnection(host: host, port: port, using: .tcp)
+      try await client.startAndWaitReady()
+      try await client.sendAsync(Data([0x05, 0x01, 0x00]))
+      _ = try await client.receiveExactly(2)
+      client.cancel()
+    }
+    #expect(recorded.values == ["lo0", "lo0"])
+  }
+}
+
+private final class RecordedInterfaces: @unchecked Sendable {
+  private let lock = NSLock()
+  private var storage: [String] = []
+  var values: [String] { lock.withLock { storage } }
+  func append(_ value: String) { lock.withLock { storage.append(value) } }
 }
 
 // MARK: - Helpers
