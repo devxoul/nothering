@@ -16,15 +16,16 @@ final class PhoneForwarder {
   }
 
   static let port: UInt16 = 11080
-  private static let phonePort: UInt16 = 11080
 
   private(set) var link = Link.none
   private(set) var error: String?
   private var forwarder: LocalForwarder?
   private var monitor: Timer?
+  private let route = PhoneRoute()
 
   func start() {
-    let forwarder = LocalForwarder(port: Self.port) { try Self.connectToPhone() }
+    let route = route
+    let forwarder = LocalForwarder(port: Self.port) { try route.connect() }
     do {
       _ = try forwarder.start()
       self.forwarder = forwarder
@@ -40,28 +41,55 @@ final class PhoneForwarder {
   /// Re-detects the link. Probing the hotspot also serves as the keepalive iOS needs to not drop
   /// idle hotspot clients while the phone is locked.
   private func refreshLink() {
+    let route = route
     Task.detached {
-      let link: Link
-      if (try? USBMux.firstUSBDeviceID()) != nil {
-        link = .usb
-      } else if let fd = try? Self.connectOverHotspot() {
-        close(fd)
-        link = .hotspot
-      } else {
-        link = .none
-      }
+      let link = route.refresh()
       await MainActor.run { self.link = link }
     }
   }
+}
 
-  nonisolated private static func connectToPhone() throws -> Int32 {
-    if let deviceID = try? USBMux.firstUSBDeviceID() {
-      return try USBMux.connect(deviceID: deviceID, port: phonePort)
+/// The current way to reach the phone, cached so each forwarded connection doesn't re-detect it
+/// (running `route` per connection is too slow when a browser opens hundreds at once).
+final class PhoneRoute: @unchecked Sendable {
+  private static let phonePort: UInt16 = 11080
+  private let lock = NSLock()
+  private var usbDeviceID: Int?
+  private var hotspotGateway: String?
+
+  @discardableResult
+  func refresh() -> PhoneForwarder.Link {
+    let deviceID = try? USBMux.firstUSBDeviceID()
+    var gateway: String?
+    if deviceID == nil, let address = try? Hotspot.gatewayAddress(),
+       let fd = try? TCP.connect(host: address, port: Self.phonePort, timeout: 3) {
+      close(fd)
+      gateway = address
     }
-    return try connectOverHotspot()
+    lock.withLock {
+      usbDeviceID = deviceID
+      hotspotGateway = gateway
+    }
+    return deviceID != nil ? .usb : gateway != nil ? .hotspot : .none
   }
 
-  nonisolated private static func connectOverHotspot() throws -> Int32 {
-    try TCP.connect(host: try Hotspot.gatewayAddress(), port: phonePort, timeout: 3)
+  func connect() throws -> Int32 {
+    do {
+      return try connectUsingCache()
+    } catch {
+      refresh()
+      return try connectUsingCache()
+    }
+  }
+
+  private func connectUsingCache() throws -> Int32 {
+    let (deviceID, gateway) = lock.withLock { (usbDeviceID, hotspotGateway) }
+    if let deviceID {
+      return try USBMux.connect(deviceID: deviceID, port: Self.phonePort)
+    }
+    if let gateway {
+      return try TCP.connect(host: gateway, port: Self.phonePort, timeout: 3)
+    }
+    throw LinkError("iPhone not connected")
   }
 }
