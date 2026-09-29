@@ -49,5 +49,15 @@ let project = Project(
       sources: ["iOS/App/**"],
       dependencies: [.target(name: "ProxyCore")]
     ),
+    .target(
+      name: "NotheringMac",
+      destinations: [.mac],
+      product: .commandLineTool,
+      productName: "nothering",
+      bundleId: "\(bundleIDPrefix).mac",
+      deploymentTargets: .macOS("15.0"),
+      sources: ["Mac/Sources/**"],
+      dependencies: [.target(name: "ProxyCore")]
+    ),
   ]
 )
