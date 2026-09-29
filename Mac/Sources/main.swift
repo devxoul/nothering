@@ -10,8 +10,10 @@ let usage = """
     --host          phone address for the hotspot link (default: the Mac's IPv6 default gateway)
     --system-proxy  point macOS's SOCKS proxy at the forwarder while running
   If nothering is killed without cleanup, reset with:
-    networksetup -setsocksfirewallproxystate Wi-Fi off
+    networksetup -setsocksfirewallproxystate <service> off   (for each service)
   """
+
+setvbuf(stdout, nil, _IOLBF, 0)
 
 var via = "auto"
 var port: UInt16 = 11080
@@ -77,7 +79,7 @@ if useSystemProxy {
     let proxy = try SystemProxy()
     try proxy.enable(port: port)
     systemProxy = proxy
-    print("nothering: system SOCKS proxy enabled on \"\(proxy.service)\"")
+    print("nothering: system SOCKS proxy enabled on \(proxy.services.joined(separator: ", "))")
   } catch {
     fail("cannot set system proxy: \(error.localizedDescription)")
   }
