@@ -65,6 +65,7 @@ final class TunnelController {
   }
 
   private func refreshStatus() {
+    let previousStatus = status
     status = manager?.connection.status ?? .invalid
     if status == .connected {
       startPollingStats()
@@ -72,7 +73,8 @@ final class TunnelController {
       statsTimer?.invalidate()
       statsTimer = nil
     }
-    if status == .disconnected {
+    // Only report errors from a start attempt in this session, not a stale one from a past run.
+    if status == .disconnected, previousStatus == .connecting {
       manager?.connection.fetchLastDisconnectError { [weak self] error in
         guard let error else { return }
         let underlying = (error as NSError).userInfo[NSUnderlyingErrorKey] as? Error
