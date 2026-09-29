@@ -10,8 +10,8 @@ final class TransparentProxyProvider: NETransparentProxyProvider {
   /// The menu bar app's forwarder, which owns the USB / hotspot link to the phone.
   private static let forwarderPort: UInt16 = 11080
 
-  /// TCP destinations that must never go through the phone: LAN, link-local (the hotspot link
-  /// itself), 464XLAT, CGNAT/Tailscale and unique-local ranges. DNS to these is still captured.
+  /// Destinations that must never go through the phone: LAN, link-local (the hotspot link itself),
+  /// 464XLAT, CGNAT/Tailscale and unique-local ranges.
   private static let excludedNetworks: [(String, Int)] = [
     ("10.0.0.0", 8), ("172.16.0.0", 12), ("192.168.0.0", 16), ("169.254.0.0", 16),
     ("100.64.0.0", 10), ("192.0.0.0", 24), ("fe80::", 10), ("fc00::", 7),
@@ -26,12 +26,7 @@ final class TransparentProxyProvider: NETransparentProxyProvider {
         remoteNetworkEndpoint: nil, remotePrefix: 0,
         localNetworkEndpoint: nil, localPrefix: 0, protocol: .TCP, direction: .outbound
       ),
-    ] + ["0.0.0.0", "::"].map { address in
-      NENetworkRule(
-        remoteNetworkEndpoint: .hostPort(host: Network.NWEndpoint.Host(address), port: 53), remotePrefix: 0,
-        localNetworkEndpoint: nil, localPrefix: 0, protocol: .UDP, direction: .outbound
-      )
-    }
+    ]
     settings.excludedNetworkRules = Self.excludedNetworks.map { address, prefix in
       NENetworkRule(
         remoteNetworkEndpoint: .hostPort(host: Network.NWEndpoint.Host(address), port: 0), remotePrefix: prefix,
@@ -52,9 +47,6 @@ final class TransparentProxyProvider: NETransparentProxyProvider {
   }
 
   override func handleNewFlow(_ flow: NEAppProxyFlow) -> Bool {
-    if let flow = flow as? NEAppProxyUDPFlow {
-      return reachability.isReachable && DNSRelay.handle(flow, forwarderPort: Self.forwarderPort, logger: logger)
-    }
     guard let flow = flow as? NEAppProxyTCPFlow else { return false }
     // Returning false lets macOS connect the flow directly, so the Mac keeps working without the phone.
     guard reachability.isReachable else { return false }
