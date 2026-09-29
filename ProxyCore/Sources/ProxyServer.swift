@@ -127,7 +127,10 @@ final class Session {
   private let client: ByteStream
   private var upstream: NWConnection?
   private unowned let server: ProxyServer
+  private static let waitingTimeout: TimeInterval = 10
   private var replied = false
+  private var waitingDeadlineScheduled = false
+  private var triedNAT64 = false
   private var finishedDirections = 0
   private var closed = false
 
@@ -196,7 +199,10 @@ final class Session {
 
   private func connect(host: NWEndpoint.Host, portBytes: Data) {
     let bytes = [UInt8](portBytes)
-    let port = NWEndpoint.Port(rawValue: UInt16(bytes[0]) << 8 | UInt16(bytes[1]))!
+    open(host: host, port: NWEndpoint.Port(rawValue: UInt16(bytes[0]) << 8 | UInt16(bytes[1]))!)
+  }
+
+  private func open(host: NWEndpoint.Host, port: NWEndpoint.Port) {
     let parameters = NWParameters.tcp
     if let interfaceType = server.configuration.requiredInterfaceType {
       parameters.requiredInterfaceType = interfaceType
@@ -207,6 +213,21 @@ final class Session {
       switch state {
       case .ready:
         reply(0x00)
+      case let .waiting(error) where !replied && !triedNAT64 && Self.isNoRoute(error) && Self.nat64Address(for: host) != nil:
+        // IPv6-only cellular networks have no IPv4 route; reach IPv4 literals through the carrier's NAT64.
+        triedNAT64 = true
+        upstream.stateUpdateHandler = nil
+        upstream.cancel()
+        open(host: .ipv6(Self.nat64Address(for: host)!), port: port)
+      case let .waiting(error) where error != .posix(.ECONNREFUSED) && !replied:
+        // Often transient (path or DNS still coming up); give it a bounded chance before failing.
+        guard !waitingDeadlineScheduled else { return }
+        waitingDeadlineScheduled = true
+        server.queue.asyncAfter(deadline: .now() + Self.waitingTimeout) { [self] in
+          guard !replied, !closed else { return }
+          server.logger.notice("connect \(host.debugDescription, privacy: .public):\(port.rawValue) timed out: \(error.debugDescription, privacy: .public)")
+          reply(Self.replyCode(for: error))
+        }
       case let .waiting(error), let .failed(error):
         server.logger.notice("connect \(host.debugDescription, privacy: .public):\(port.rawValue) failed: \(error.debugDescription, privacy: .public)")
         replied ? close() : reply(Self.replyCode(for: error))
@@ -217,6 +238,16 @@ final class Session {
       }
     }
     upstream.start(queue: server.queue)
+  }
+
+  private static func isNoRoute(_ error: NWError) -> Bool {
+    error == .posix(.ENETDOWN) || error == .posix(.ENETUNREACH)
+  }
+
+  /// Maps an IPv4 host into the well-known NAT64 prefix 64:ff9b::/96 (RFC 6052).
+  static func nat64Address(for host: NWEndpoint.Host) -> IPv6Address? {
+    guard case let .ipv4(address) = host else { return nil }
+    return IPv6Address(Data([0x00, 0x64, 0xFF, 0x9B] + [UInt8](repeating: 0, count: 8)) + address.rawValue)
   }
 
   /// Sends a SOCKS5 reply. Success starts the relay; any failure closes the session afterwards.
