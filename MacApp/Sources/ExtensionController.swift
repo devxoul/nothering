@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import NetworkExtension
 import Observation
@@ -82,7 +83,10 @@ extension ExtensionController: OSSystemExtensionRequestDelegate {
   }
 
   nonisolated func requestNeedsUserApproval(_ request: OSSystemExtensionRequest) {
-    Task { @MainActor in status = "Approve the extension in System Settings" }
+    Task { @MainActor in
+      status = "Approve the extension in System Settings"
+      NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension")!)
+    }
   }
 
   nonisolated func request(_ request: OSSystemExtensionRequest, didFinishWithResult result: OSSystemExtensionRequest.Result) {
