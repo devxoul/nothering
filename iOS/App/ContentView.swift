@@ -32,7 +32,12 @@ struct ContentView: View {
         }
       }
       .navigationTitle("Nothering")
-      .task { await controller.load() }
+      .task {
+        await controller.load()
+        if CommandLine.arguments.contains("--autostart"), !controller.isRunning {
+          await controller.toggle()
+        }
+      }
     }
   }
 }
