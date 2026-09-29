@@ -14,6 +14,8 @@ public enum TCP {
 
     let fd = socket(info.pointee.ai_family, info.pointee.ai_socktype, info.pointee.ai_protocol)
     guard fd >= 0 else { throw LinkError("socket: \(String(cString: strerror(errno)))") }
+    var on: Int32 = 1
+    setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
     let flags = fcntl(fd, F_GETFL)
     _ = fcntl(fd, F_SETFL, flags | O_NONBLOCK)
 

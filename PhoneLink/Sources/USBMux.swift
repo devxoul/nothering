@@ -38,6 +38,8 @@ public enum USBMux {
   private static func openSocket() throws -> Int32 {
     let fd = socket(AF_UNIX, SOCK_STREAM, 0)
     guard fd >= 0 else { throw LinkError("socket: \(String(cString: strerror(errno)))") }
+    var on: Int32 = 1
+    setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
     var address = sockaddr_un()
     address.sun_family = sa_family_t(AF_UNIX)
     withUnsafeMutableBytes(of: &address.sun_path) { buffer in
