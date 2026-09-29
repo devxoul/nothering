@@ -54,7 +54,7 @@ final class TransparentProxyProvider: NETransparentProxyProvider {
     // control traffic through the phone breaks them, and MagicDNS with them.
     guard !Self.isNetworkExtension(flow.metaData.sourceAppSigningIdentifier) else { return false }
     guard case let .hostPort(endpointHost, endpointPort) = flow.remoteFlowEndpoint else { return false }
-    let host = flow.remoteHostname ?? Self.string(for: endpointHost)
+    let host = flow.remoteHostname ?? endpointHost.addressString
     let port = endpointPort.rawValue
 
     DispatchQueue.global().async { [logger] in
@@ -91,14 +91,5 @@ final class TransparentProxyProvider: NETransparentProxyProvider {
     let identifier = signingIdentifier.lowercased()
     return identifier.contains("network-extension") || identifier.contains("networkextension")
       || identifier.hasSuffix(".systemextension")
-  }
-
-  private static func string(for host: Network.NWEndpoint.Host) -> String {
-    switch host {
-    case let .name(name, _): name
-    case let .ipv4(address): "\(address)"
-    case let .ipv6(address): "\(address)"
-    @unknown default: "\(host)"
-    }
   }
 }
