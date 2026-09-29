@@ -7,7 +7,8 @@ import PhoneLink
 /// Receives app TCP flows from macOS and relays each one to the iPhone's SOCKS5 proxy.
 final class TransparentProxyProvider: NETransparentProxyProvider {
   private let logger = Logger(subsystem: "app.nothering", category: "proxy")
-  private static let phonePort: UInt16 = 11080
+  /// The menu bar app's forwarder, which owns the USB / hotspot link to the phone.
+  private static let forwarderPort: UInt16 = 11080
 
   override func startProxy(options: [String: Any]? = nil, completionHandler: @escaping (Error?) -> Void) {
     let settings = NETransparentProxyNetworkSettings(tunnelRemoteAddress: "127.0.0.1")
@@ -37,7 +38,7 @@ final class TransparentProxyProvider: NETransparentProxyProvider {
     DispatchQueue.global().async { [logger] in
       let fd: Int32
       do {
-        fd = try USBMux.connect(deviceID: try USBMux.firstUSBDeviceID(), port: Self.phonePort)
+        fd = try TCP.connect(host: "127.0.0.1", port: Self.forwarderPort)
         do {
           try SOCKS5.connect(fd, host: host, port: port)
         } catch {
