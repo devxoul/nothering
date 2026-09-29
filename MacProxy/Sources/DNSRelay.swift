@@ -74,7 +74,11 @@ enum DNSRelay {
     guard fd >= 0 else { throw LinkError("DNS socket: \(String(cString: strerror(errno)))") }
     defer { close(fd) }
     setReceiveTimeout(fd, seconds: 3)
-    let sent = query.withUnsafeBytes { sendto(fd, $0.baseAddress, $0.count, 0, info.pointee.ai_addr, info.pointee.ai_addrlen) }
+    // A connected socket keeps the reply "outbound" for the sandbox; recv on an unconnected one is denied.
+    guard connect(fd, info.pointee.ai_addr, info.pointee.ai_addrlen) == 0 else {
+      throw LinkError("DNS connect: \(String(cString: strerror(errno)))")
+    }
+    let sent = query.withUnsafeBytes { send(fd, $0.baseAddress, $0.count, 0) }
     guard sent == query.count else { throw LinkError("DNS send: \(String(cString: strerror(errno)))") }
     var response = [UInt8](repeating: 0, count: 65535)
     let received = recv(fd, &response, response.count, 0)
