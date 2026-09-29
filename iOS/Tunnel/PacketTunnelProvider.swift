@@ -24,7 +24,10 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         completionHandler(nil)
       } catch {
         logger.error("failed to start: \(error.localizedDescription, privacy: .public)")
-        completionHandler(error)
+        // Plain NSError so the description survives XPC to the app's fetchLastDisconnectError.
+        completionHandler(NSError(domain: "com.suyeol.nothering.tunnel", code: 1, userInfo: [
+          NSLocalizedDescriptionKey: error.localizedDescription,
+        ]))
       }
     }
   }
