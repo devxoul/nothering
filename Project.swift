@@ -89,7 +89,11 @@ let project = Project(
       ]),
       sources: ["MacApp/Sources/**"],
       entitlements: "MacApp/App.entitlements",
-      dependencies: [.target(name: "NotheringProxyExtension")],
+      dependencies: [
+        .target(name: "NotheringProxyExtension"),
+        .target(name: "ProxyCore"),
+        .target(name: "PhoneLink"),
+      ],
       settings: .settings(base: ["CODE_SIGN_IDENTITY[sdk=macosx*]": "Apple Development"])
     ),
     .target(
@@ -100,6 +104,7 @@ let project = Project(
       bundleId: "\(bundleIDPrefix).mac.proxy",
       deploymentTargets: .macOS("15.0"),
       infoPlist: .extendingDefault(with: [
+        "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
         "NSSystemExtensionUsageDescription": "Nothering routes your Mac's network connections through your iPhone.",
         "NetworkExtension": [
           "NEMachServiceName": "$(TeamIdentifierPrefix)app.nothering.mac.proxy",
