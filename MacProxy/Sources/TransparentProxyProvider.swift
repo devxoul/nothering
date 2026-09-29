@@ -50,6 +50,9 @@ final class TransparentProxyProvider: NETransparentProxyProvider {
     guard let flow = flow as? NEAppProxyTCPFlow else { return false }
     // Returning false lets macOS connect the flow directly, so the Mac keeps working without the phone.
     guard reachability.isReachable else { return false }
+    // Other network extensions (e.g. Tailscale) manage their own connectivity; tunnelling their
+    // control traffic through the phone breaks them, and MagicDNS with them.
+    guard !Self.isNetworkExtension(flow.metaData.sourceAppSigningIdentifier) else { return false }
     guard case let .hostPort(endpointHost, endpointPort) = flow.remoteFlowEndpoint else { return false }
     let host = flow.remoteHostname ?? Self.string(for: endpointHost)
     let port = endpointPort.rawValue
@@ -82,6 +85,12 @@ final class TransparentProxyProvider: NETransparentProxyProvider {
       }
     }
     return true
+  }
+
+  static func isNetworkExtension(_ signingIdentifier: String) -> Bool {
+    let identifier = signingIdentifier.lowercased()
+    return identifier.contains("network-extension") || identifier.contains("networkextension")
+      || identifier.hasSuffix(".systemextension")
   }
 
   private static func string(for host: Network.NWEndpoint.Host) -> String {
