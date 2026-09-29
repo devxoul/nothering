@@ -10,14 +10,30 @@ final class TransparentProxyProvider: NETransparentProxyProvider {
   /// The menu bar app's forwarder, which owns the USB / hotspot link to the phone.
   private static let forwarderPort: UInt16 = 11080
 
+  /// Destinations that must never go through the phone: loopback-like, LAN, link-local (the hotspot
+  /// link itself), 464XLAT, CGNAT/Tailscale and unique-local ranges.
+  private static let excludedNetworks: [(String, Int)] = [
+    ("10.0.0.0", 8), ("172.16.0.0", 12), ("192.168.0.0", 16), ("169.254.0.0", 16),
+    ("100.64.0.0", 10), ("192.0.0.0", 24), ("fe80::", 10), ("fc00::", 7),
+  ]
+
+  private let reachability = PhoneReachability(forwarderPort: forwarderPort)
+
   override func startProxy(options: [String: Any]? = nil, completionHandler: @escaping (Error?) -> Void) {
     let settings = NETransparentProxyNetworkSettings(tunnelRemoteAddress: "127.0.0.1")
     settings.includedNetworkRules = ["0.0.0.0", "::"].map { address in
       NENetworkRule(
-        remoteNetworkEndpoint: .hostPort(host: Network.NWEndpoint.Host(address), port: 80), remotePrefix: 0,
+        remoteNetworkEndpoint: .hostPort(host: Network.NWEndpoint.Host(address), port: 0), remotePrefix: 0,
         localNetworkEndpoint: nil, localPrefix: 0, protocol: .TCP, direction: .outbound
       )
     }
+    settings.excludedNetworkRules = Self.excludedNetworks.map { address, prefix in
+      NENetworkRule(
+        remoteNetworkEndpoint: .hostPort(host: Network.NWEndpoint.Host(address), port: 0), remotePrefix: prefix,
+        localNetworkEndpoint: nil, localPrefix: 0, protocol: .any, direction: .outbound
+      )
+    }
+    reachability.start()
     setTunnelNetworkSettings(settings) { [logger] error in
       logger.info("proxy started, error: \(error?.localizedDescription ?? "none", privacy: .public)")
       completionHandler(error)
@@ -26,11 +42,14 @@ final class TransparentProxyProvider: NETransparentProxyProvider {
 
   override func stopProxy(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
     logger.info("proxy stopped, reason \(reason.rawValue)")
+    reachability.stop()
     completionHandler()
   }
 
   override func handleNewFlow(_ flow: NEAppProxyFlow) -> Bool {
     guard let flow = flow as? NEAppProxyTCPFlow else { return false }
+    // Returning false lets macOS connect the flow directly, so the Mac keeps working without the phone.
+    guard reachability.isReachable else { return false }
     guard case let .hostPort(endpointHost, endpointPort) = flow.remoteFlowEndpoint else { return false }
     let host = flow.remoteHostname ?? Self.string(for: endpointHost)
     let port = endpointPort.rawValue
@@ -142,5 +161,46 @@ private final class FlowRelay {
       close(fd)
       flow.closeReadWithError(nil)
     }
+  }
+}
+
+/// Tracks whether the app's forwarder can currently reach the phone, by periodically completing a
+/// SOCKS5 greeting through it (the forwarder only answers once its upstream link is connected).
+private final class PhoneReachability {
+  private let forwarderPort: UInt16
+  private let lock = NSLock()
+  private var reachable = false
+  private var timer: DispatchSourceTimer?
+
+  init(forwarderPort: UInt16) {
+    self.forwarderPort = forwarderPort
+  }
+
+  var isReachable: Bool {
+    lock.withLock { reachable }
+  }
+
+  func start() {
+    let timer = DispatchSource.makeTimerSource(queue: .global())
+    timer.schedule(deadline: .now(), repeating: 3)
+    timer.setEventHandler { [weak self] in self?.probe() }
+    timer.resume()
+    self.timer = timer
+  }
+
+  func stop() {
+    timer?.cancel()
+    timer = nil
+  }
+
+  private func probe() {
+    var result = false
+    if let fd = try? TCP.connect(host: "127.0.0.1", port: forwarderPort, timeout: 2) {
+      var timeout = timeval(tv_sec: 3, tv_usec: 0)
+      setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+      result = (try? SOCKS5.greet(fd)) != nil
+      close(fd)
+    }
+    lock.withLock { reachable = result }
   }
 }
