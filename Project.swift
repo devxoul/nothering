@@ -76,5 +76,40 @@ let project = Project(
       sources: ["Mac/Sources/**"],
       dependencies: [.target(name: "ProxyCore"), .target(name: "PhoneLink")]
     ),
+    .target(
+      name: "NotheringMenuBar",
+      destinations: [.mac],
+      product: .app,
+      productName: "Nothering",
+      bundleId: "\(bundleIDPrefix).macos",
+      deploymentTargets: .macOS("15.0"),
+      infoPlist: .extendingDefault(with: [
+        "CFBundleDisplayName": "Nothering",
+        "LSUIElement": true,
+      ]),
+      sources: ["MacApp/Sources/**"],
+      entitlements: "MacApp/App.entitlements",
+      dependencies: [.target(name: "NotheringProxyExtension")],
+      settings: .settings(base: ["CODE_SIGN_IDENTITY[sdk=macosx*]": "Apple Development"])
+    ),
+    .target(
+      name: "NotheringProxyExtension",
+      destinations: [.mac],
+      product: .systemExtension,
+      bundleId: "\(bundleIDPrefix).macos.proxy",
+      deploymentTargets: .macOS("15.0"),
+      infoPlist: .extendingDefault(with: [
+        "NetworkExtension": [
+          "NEMachServiceName": "$(TeamIdentifierPrefix)com.suyeol.nothering.macos.proxy",
+          "NEProviderClasses": [
+            "com.apple.networkextension.app-proxy": "$(PRODUCT_MODULE_NAME).TransparentProxyProvider",
+          ],
+        ],
+      ]),
+      sources: ["MacProxy/Sources/**"],
+      entitlements: "MacProxy/Proxy.entitlements",
+      dependencies: [.target(name: "PhoneLink")],
+      settings: .settings(base: ["CODE_SIGN_IDENTITY[sdk=macosx*]": "Apple Development"])
+    ),
   ]
 )
