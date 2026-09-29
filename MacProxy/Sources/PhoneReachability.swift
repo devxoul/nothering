@@ -11,6 +11,7 @@ final class PhoneReachability {
   private let forwarderPort: UInt16
   private let lock = NSLock()
   private var reachable = false
+  private var consecutiveFailures = 0
   private var timer: DispatchSourceTimer?
 
   init(forwarderPort: UInt16) {
@@ -42,6 +43,10 @@ final class PhoneReachability {
       result = (try? SOCKS5.greet(fd)) != nil
       close(fd)
     }
-    lock.withLock { reachable = result }
+    // Hysteresis: one slow probe under load shouldn't send every new connection around the phone.
+    lock.withLock {
+      consecutiveFailures = result ? 0 : consecutiveFailures + 1
+      reachable = result || (reachable && consecutiveFailures < 2)
+    }
   }
 }
