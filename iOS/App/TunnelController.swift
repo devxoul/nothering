@@ -72,6 +72,14 @@ final class TunnelController {
       statsTimer?.invalidate()
       statsTimer = nil
     }
+    if status == .disconnected {
+      manager?.connection.fetchLastDisconnectError { [weak self] error in
+        guard let error else { return }
+        let underlying = (error as NSError).userInfo[NSUnderlyingErrorKey] as? Error
+        let message = underlying?.localizedDescription ?? error.localizedDescription
+        Task { @MainActor in self?.lastError = message }
+      }
+    }
   }
 
   private func startPollingStats() {
