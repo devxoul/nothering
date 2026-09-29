@@ -4,7 +4,7 @@ import SwiftUI
 struct NotheringApp: App {
     var body: some Scene {
         WindowGroup {
-            Text("Nothering")
+            ContentView()
         }
     }
 }
