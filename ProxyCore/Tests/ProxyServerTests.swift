@@ -62,6 +62,15 @@ private let loopback = NWEndpoint.Host.ipv4(.loopback)
     client.cancel()
   }
 
+  @Test func describesListenerFailure() async throws {
+    let (server, port) = try await startProxy()
+    defer { server.stop() }
+
+    let conflicting = ProxyServer(configuration: .init(port: port, requiredInterfaceType: nil))
+    let error = await #expect(throws: ProxyServer.StartError.self) { try await conflicting.start() }
+    #expect(error?.localizedDescription.contains("Address already in use") == true)
+  }
+
   @Test(arguments: [
     ("127.0.0.1", true),
     ("172.20.10.2", true),

@@ -31,9 +31,16 @@ public final class ProxyServer {
     public init() {}
   }
 
-  public enum StartError: Error {
+  public enum StartError: LocalizedError {
     case listenerFailed(NWError)
     case cancelled
+
+    public var errorDescription: String? {
+      switch self {
+      case let .listenerFailed(error): "Proxy listener failed: \(error.localizedDescription)"
+      case .cancelled: "Proxy listener was cancelled"
+      }
+    }
   }
 
   let configuration: Configuration
