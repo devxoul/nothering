@@ -96,6 +96,7 @@ let project = Project(
       name: "NotheringProxyExtension",
       destinations: [.mac],
       product: .systemExtension,
+      productName: "\(bundleIDPrefix).macos.proxy",
       bundleId: "\(bundleIDPrefix).macos.proxy",
       deploymentTargets: .macOS("15.0"),
       infoPlist: .extendingDefault(with: [
@@ -109,7 +110,10 @@ let project = Project(
       sources: ["MacProxy/Sources/**"],
       entitlements: "MacProxy/Proxy.entitlements",
       dependencies: [.target(name: "PhoneLink")],
-      settings: .settings(base: ["CODE_SIGN_IDENTITY[sdk=macosx*]": "Apple Development"])
+      settings: .settings(base: [
+        "CODE_SIGN_IDENTITY[sdk=macosx*]": "Apple Development",
+        "PRODUCT_MODULE_NAME": "NotheringProxyExtension",
+      ])
     ),
   ]
 )
