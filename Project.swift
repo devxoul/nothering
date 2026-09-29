@@ -58,6 +58,15 @@ let project = Project(
       sources: ["PhoneLink/Sources/**"]
     ),
     .target(
+      name: "PhoneLinkTests",
+      destinations: [.mac],
+      product: .unitTests,
+      bundleId: "\(bundleIDPrefix).phonelink.tests",
+      deploymentTargets: .macOS("15.0"),
+      sources: ["PhoneLink/Tests/**"],
+      dependencies: [.target(name: "PhoneLink"), .target(name: "ProxyCore")]
+    ),
+    .target(
       name: "NotheringMac",
       destinations: [.mac],
       product: .commandLineTool,
