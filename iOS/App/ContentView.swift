@@ -1,13 +1,13 @@
 import SwiftUI
 
 struct ContentView: View {
-  @State private var controller = TunnelController()
+  @State private var controller = ProxyController()
 
   var body: some View {
     NavigationStack {
       List {
         Section {
-          LabeledContent("Status", value: controller.status.label)
+          LabeledContent("Status", value: controller.isRunning ? "Running" : "Stopped")
           Button(controller.isRunning ? "Stop Proxy" : "Start Proxy") {
             Task { await controller.toggle() }
           }
@@ -17,11 +17,11 @@ struct ContentView: View {
         }
 
         Section {
-          LabeledContent("SOCKS5", value: "172.20.10.1:11080")
+          LabeledContent("SOCKS5 port", value: "11080")
         } header: {
           Text("Connect from Mac")
         } footer: {
-          Text("Turn on Personal Hotspot, connect the Mac, then point it at this SOCKS5 address. Outbound connections use cellular only.")
+          Text("Connect the Mac to this iPhone's Personal Hotspot and use the Mac's default gateway (this iPhone) as the SOCKS5 host. Outbound connections use cellular only.")
         }
 
         Section("Traffic") {
@@ -33,9 +33,8 @@ struct ContentView: View {
       }
       .navigationTitle("Nothering")
       .task {
-        await controller.load()
         if CommandLine.arguments.contains("--autostart"), !controller.isRunning {
-          await controller.toggle()
+          await controller.start()
         }
       }
     }
