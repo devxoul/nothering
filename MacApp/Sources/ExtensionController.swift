@@ -39,12 +39,26 @@ final class ExtensionController: NSObject {
 
   func turnOff() {
     manager?.connection.stopVPNTunnel()
+    Task { try? await setDNSProxyEnabled(false) }
+  }
+
+  /// A DNS proxy has no start/stop; it runs whenever its (system-wide, single) configuration is enabled.
+  private func setDNSProxyEnabled(_ enabled: Bool) async throws {
+    let manager = NEDNSProxyManager.shared()
+    try await manager.loadFromPreferences()
+    let configuration = NEDNSProxyProviderProtocol()
+    configuration.providerBundleIdentifier = Self.extensionIdentifier
+    manager.providerProtocol = configuration
+    manager.localizedDescription = "Nothering DNS"
+    manager.isEnabled = enabled
+    try await manager.saveToPreferences()
   }
 
   func turnOn() async {
     do {
       let manager = try await configuredManager()
       try manager.connection.startVPNTunnel()
+      try await setDNSProxyEnabled(true)
     } catch {
       status = "Error: \(error.localizedDescription)"
     }
