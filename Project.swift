@@ -111,6 +111,7 @@ let project = Project(
           "NEMachServiceName": "$(TeamIdentifierPrefix)app.nothering.mac.proxy",
           "NEProviderClasses": [
             "com.apple.networkextension.app-proxy": "$(PRODUCT_MODULE_NAME).TransparentProxyProvider",
+            "com.apple.networkextension.dns-proxy": "$(PRODUCT_MODULE_NAME).DNSProxyProvider",
           ],
         ],
       ]),
