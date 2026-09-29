@@ -44,6 +44,7 @@ let project = Project(
       infoPlist: .extendingDefault(with: localNetworkUsage.merging([
         "CFBundleDisplayName": "Nothering",
         "UILaunchScreen": [:],
+        "UIBackgroundModes": ["audio"],
       ]) { $1 }),
       sources: ["iOS/App/**"],
       entitlements: "iOS/App.entitlements",
