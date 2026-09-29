@@ -225,3 +225,7 @@ extension NWConnection {
   #expect(Session.nat64Address(for: .ipv4(IPv4Address("34.160.111.145")!)) == IPv6Address("64:ff9b::22a0:6f91"))
   #expect(Session.nat64Address(for: .name("example.com", nil)) == nil)
 }
+
+@Test func parsesIPv4LiteralSentAsDomainName() {
+  #expect(Session.nat64Address(for: NWEndpoint.Host("34.160.111.145")) != nil)
+}

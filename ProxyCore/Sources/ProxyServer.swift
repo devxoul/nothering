@@ -188,7 +188,7 @@ final class Session {
             guard let name = String(data: body.prefix(body.count - 2), encoding: .utf8) else {
               return reply(0x01)
             }
-            connect(host: .name(name, nil), portBytes: body.suffix(2))
+            connect(host: NWEndpoint.Host(name), portBytes: body.suffix(2))
           }
         }
       default:
