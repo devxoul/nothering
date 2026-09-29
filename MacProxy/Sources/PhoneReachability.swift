@@ -24,7 +24,7 @@ final class PhoneReachability {
 
   func start() {
     let timer = DispatchSource.makeTimerSource(queue: .global())
-    timer.schedule(deadline: .now(), repeating: 3)
+    timer.schedule(deadline: .now(), repeating: 1)
     timer.setEventHandler { [weak self] in self?.probe() }
     timer.resume()
     self.timer = timer
