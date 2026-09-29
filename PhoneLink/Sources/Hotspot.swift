@@ -1,15 +1,26 @@
 import Darwin
 import Foundation
 
-/// Reaches the iPhone over its Personal Hotspot, where the phone is the Mac's IPv6 default router.
+/// Reaches the iPhone over its Personal Hotspot, where the phone is the Mac's default router.
 public enum Hotspot {
-  /// The IPv6 default gateway, e.g. `fe80::141b:a0ff:fe1c:64%en0`.
+  /// The phone's address on the hotspot: the IPv6 default gateway (e.g. `fe80::…%en0`) when the
+  /// hotspot advertises IPv6, otherwise the classic IPv4 hotspot gateway in 172.20.10.0/28.
   public static func gatewayAddress() throws -> String {
-    let output = try run("/sbin/route", ["-n", "get", "-inet6", "default"])
-    guard let line = output.split(separator: "\n").first(where: { $0.contains("gateway:") }),
+    if let address = gateway(family: "-inet6") {
+      return address
+    }
+    if let address = gateway(family: "-inet"), address.hasPrefix("172.20.10.") {
+      return address
+    }
+    throw LinkError("no hotspot gateway; is the Mac joined to the iPhone's hotspot?")
+  }
+
+  private static func gateway(family: String) -> String? {
+    guard let output = try? run("/sbin/route", ["-n", "get", family, "default"]),
+          let line = output.split(separator: "\n").first(where: { $0.contains("gateway:") }),
           let address = line.split(separator: " ").last
     else {
-      throw LinkError("no IPv6 default gateway; is the Mac joined to the iPhone's hotspot?")
+      return nil
     }
     return String(address)
   }
