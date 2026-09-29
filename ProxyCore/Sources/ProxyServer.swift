@@ -27,6 +27,8 @@ public final class ProxyServer {
         public var totalConnections = 0
         public var bytesUp: UInt64 = 0
         public var bytesDown: UInt64 = 0
+
+        public init() {}
     }
 
     public enum StartError: Error {
