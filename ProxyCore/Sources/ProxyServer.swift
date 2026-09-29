@@ -12,7 +12,7 @@ public final class ProxyServer {
     public var isClientAllowed: (NWEndpoint) -> Bool
 
     public init(
-      port: NWEndpoint.Port = 1080,
+      port: NWEndpoint.Port = 11080,
       requiredInterfaceType: NWInterface.InterfaceType? = .cellular,
       isClientAllowed: @escaping (NWEndpoint) -> Bool = ProxyServer.isHotspotOrLoopbackClient
     ) {

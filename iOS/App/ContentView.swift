@@ -17,7 +17,7 @@ struct ContentView: View {
         }
 
         Section {
-          LabeledContent("SOCKS5", value: "172.20.10.1:1080")
+          LabeledContent("SOCKS5", value: "172.20.10.1:11080")
         } header: {
           Text("Connect from Mac")
         } footer: {
