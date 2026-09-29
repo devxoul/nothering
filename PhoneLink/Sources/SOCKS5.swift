@@ -9,9 +9,7 @@ public enum SOCKS5 {
     let name = Array(host.utf8)
     guard !name.isEmpty, name.count <= 255 else { throw LinkError("invalid SOCKS5 host \(host)") }
 
-    try writeAll(fd, [0x05, 0x01, 0x00])
-    guard try readExactly(fd, 2) == [0x05, 0x00] else { throw LinkError("SOCKS5 proxy refused no-auth") }
-
+    try greet(fd)
     try writeAll(fd, [0x05, 0x01, 0x00, 0x03, UInt8(name.count)] + name + [UInt8(port >> 8), UInt8(port & 0xFF)])
     let reply = try readExactly(fd, 4)
     guard reply[1] == 0x00 else { throw LinkError("SOCKS5 connect to \(host):\(port) failed (code \(reply[1]))") }
@@ -21,6 +19,12 @@ public enum SOCKS5 {
     case 0x03: _ = try readExactly(fd, Int(try readExactly(fd, 1)[0]) + 2)
     default: throw LinkError("SOCKS5 reply has unknown address type")
     }
+  }
+
+  /// Performs only the method negotiation; succeeds when a SOCKS5 proxy is answering on `fd`.
+  public static func greet(_ fd: Int32) throws {
+    try writeAll(fd, [0x05, 0x01, 0x00])
+    guard try readExactly(fd, 2) == [0x05, 0x00] else { throw LinkError("SOCKS5 proxy refused no-auth") }
   }
 
   private static func writeAll(_ fd: Int32, _ bytes: [UInt8]) throws {
