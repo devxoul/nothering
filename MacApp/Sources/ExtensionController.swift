@@ -43,8 +43,16 @@ final class ExtensionController: NSObject {
   }
 
   private func load() async {
-    manager = try? await NETransparentProxyManager.loadAllFromPreferences().first
+    let managers = (try? await NETransparentProxyManager.loadAllFromPreferences()) ?? []
+    for stale in managers where Self.providerIdentifier(of: stale) != Self.extensionIdentifier {
+      try? await stale.removeFromPreferences()
+    }
+    manager = managers.first { Self.providerIdentifier(of: $0) == Self.extensionIdentifier }
     refreshStatus()
+  }
+
+  private static func providerIdentifier(of manager: NETransparentProxyManager) -> String? {
+    (manager.protocolConfiguration as? NETunnelProviderProtocol)?.providerBundleIdentifier
   }
 
   private func configuredManager() async throws -> NETransparentProxyManager {
