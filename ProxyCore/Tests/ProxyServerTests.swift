@@ -143,7 +143,7 @@ private func socksHandshake(proxyPort: NWEndpoint.Port) async throws -> NWConnec
   return client
 }
 
-private func startEchoServer() async throws -> (NWListener, NWEndpoint.Port) {
+func startEchoServer() async throws -> (NWListener, NWEndpoint.Port) {
   let listener = try NWListener(using: .tcp, on: .any)
   let queue = DispatchQueue(label: "echo")
   listener.newConnectionHandler = { connection in
@@ -177,7 +177,7 @@ private func startEchoServer() async throws -> (NWListener, NWEndpoint.Port) {
   return (listener, port)
 }
 
-private extension NWConnection {
+extension NWConnection {
   func startAndWaitReady() async throws {
     try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
       stateUpdateHandler = { [weak self] state in

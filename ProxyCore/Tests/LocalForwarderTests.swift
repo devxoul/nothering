@@ -1,0 +1,52 @@
+import Darwin
+import Foundation
+import Network
+import Testing
+@testable import ProxyCore
+
+@Suite struct LocalForwarderTests {
+  @Test func relaysLoopbackClientToUpstream() async throws {
+    let (echo, echoPort) = try await startEchoServer()
+    defer { echo.cancel() }
+
+    let forwarder = LocalForwarder(port: 0) { try connectTCP(port: echoPort.rawValue) }
+    let port = try forwarder.start()
+    defer { forwarder.stop() }
+
+    let client = NWConnection(host: .ipv4(.loopback), port: NWEndpoint.Port(rawValue: port)!, using: .tcp)
+    try await client.startAndWaitReady()
+    try await client.sendAsync(Data("through the phone".utf8))
+    #expect(try await client.receiveExactly(17) == Data("through the phone".utf8))
+    client.cancel()
+  }
+
+  @Test func closesClientWhenUpstreamFails() async throws {
+    struct Unreachable: Error {}
+    let forwarder = LocalForwarder(port: 0) { throw Unreachable() }
+    let port = try forwarder.start()
+    defer { forwarder.stop() }
+
+    let client = NWConnection(host: .ipv4(.loopback), port: NWEndpoint.Port(rawValue: port)!, using: .tcp)
+    try await client.startAndWaitReady()
+    let reply = try? await client.receiveExactly(1)
+    #expect(reply == nil || reply?.isEmpty == true)
+    client.cancel()
+  }
+}
+
+private func connectTCP(port: UInt16) throws -> Int32 {
+  let fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)
+  var address = sockaddr_in()
+  address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+  address.sin_family = sa_family_t(AF_INET)
+  address.sin_port = port.bigEndian
+  address.sin_addr.s_addr = inet_addr("127.0.0.1")
+  let result = withUnsafePointer(to: &address) {
+    $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
+  }
+  guard result == 0 else {
+    Darwin.close(fd)
+    throw SocketError("connect")
+  }
+  return fd
+}
