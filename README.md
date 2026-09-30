@@ -13,6 +13,7 @@
   <img src="https://img.shields.io/badge/macOS-15%2B-000?logo=apple" alt="macOS 15+">
   <img src="https://img.shields.io/badge/Swift-5-F05138?logo=swift&logoColor=white" alt="Swift 5">
   <img src="https://img.shields.io/badge/built%20with-Tuist-6236FF" alt="Tuist">
+  <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License">
 </p>
 
 ---
@@ -135,3 +136,7 @@ Logs use the `app.nothering` subsystem:
 ```sh
 log stream --predicate 'subsystem == "app.nothering"'
 ```
+
+## License
+
+[MIT](LICENSE)
