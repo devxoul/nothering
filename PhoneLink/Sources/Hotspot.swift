@@ -15,6 +15,12 @@ public enum Hotspot {
     throw LinkError("no hotspot gateway; is the Mac joined to the iPhone's hotspot?")
   }
 
+  /// Whether the Mac is on an iPhone's Personal Hotspot, which always routes IPv4 through 172.20.10.0/28.
+  /// Unlike `gatewayAddress()`, this doesn't take an arbitrary IPv6 router for the phone.
+  public static func isIPhoneHotspot() -> Bool {
+    gateway(family: "-inet")?.hasPrefix("172.20.10.") == true
+  }
+
   private static func gateway(family: String) -> String? {
     guard let output = try? run("/sbin/route", ["-n", "get", family, "default"]),
           let line = output.split(separator: "\n").first(where: { $0.contains("gateway:") }),
