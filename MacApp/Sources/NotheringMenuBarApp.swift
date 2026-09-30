@@ -25,6 +25,9 @@ struct NotheringMenuBarApp: App {
       if let error = forwarder.error {
         Text(error)
       }
+      Picker("Link", selection: $forwarder.preference) {
+        ForEach(PhoneForwarder.Preference.allCases, id: \.self) { Text($0.rawValue) }
+      }
       Divider()
       Button("Install Extension") { controller.installExtension() }
       Button(controller.isRunning ? "Turn Off" : "Turn On") {

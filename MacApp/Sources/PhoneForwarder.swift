@@ -16,11 +16,27 @@ final class PhoneForwarder {
     case none = "Not connected"
   }
 
+  /// Which link to use; `auto` prefers USB and falls back to the hotspot.
+  enum Preference: String, CaseIterable {
+    case auto = "Auto"
+    case usb = "USB"
+    case hotspot = "Hotspot"
+  }
+
+  private static let preferenceKey = "linkPreference"
+
   static let port: UInt16 = 11080
 
   private(set) var link = Link.none
   private(set) var error: String?
   private(set) var stats = LocalForwarder.Stats()
+  var preference = Preference(rawValue: UserDefaults.standard.string(forKey: preferenceKey) ?? "") ?? .auto {
+    didSet {
+      UserDefaults.standard.set(preference.rawValue, forKey: Self.preferenceKey)
+      route.preference = preference
+      refreshLink()
+    }
+  }
   private var forwarder: LocalForwarder?
   private var monitor: Timer?
   private var statsTimer: Timer?
@@ -28,6 +44,7 @@ final class PhoneForwarder {
   private let pathMonitor = NWPathMonitor()
 
   func start() {
+    route.preference = preference
     let route = route
     let forwarder = LocalForwarder(port: Self.port) { try route.connect() }
     do {
@@ -70,12 +87,19 @@ final class PhoneRoute: @unchecked Sendable {
   private let lock = NSLock()
   private var usbDeviceID: Int?
   private var hotspotGateway: String?
+  private var storedPreference = PhoneForwarder.Preference.auto
+
+  var preference: PhoneForwarder.Preference {
+    get { lock.withLock { storedPreference } }
+    set { lock.withLock { storedPreference = newValue } }
+  }
 
   @discardableResult
   func refresh() -> PhoneForwarder.Link {
-    let deviceID = try? USBMux.firstUSBDeviceID()
+    let preference = preference
+    let deviceID = preference == .hotspot ? nil : try? USBMux.firstUSBDeviceID()
     var gateway: String?
-    if deviceID == nil, let address = try? Hotspot.gatewayAddress(),
+    if deviceID == nil, preference != .usb, let address = try? Hotspot.gatewayAddress(),
        let fd = try? TCP.connect(host: address, port: Self.phonePort, timeout: 3) {
       close(fd)
       gateway = address
