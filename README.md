@@ -5,7 +5,8 @@
 <h1 align="center">Nothering</h1>
 
 <p align="center">
-  Use your iPhone's cellular connection from your Mac — <em>without</em> it looking like tethering.
+  <strong>Nothering is not tethering.</strong><br>
+  Use your iPhone's cellular connection from your Mac — without it looking like tethering.
 </p>
 
 <p align="center">
