@@ -24,6 +24,7 @@ final class PhoneForwarder {
   }
 
   private static let preferenceKey = "linkPreference"
+  private static let autoTurnOnKey = "autoTurnOn"
 
   static let port: UInt16 = 11080
 
@@ -42,6 +43,12 @@ final class PhoneForwarder {
       refreshLink()
     }
   }
+  var autoTurnOn = UserDefaults.standard.bool(forKey: autoTurnOnKey) {
+    didSet { UserDefaults.standard.set(autoTurnOn, forKey: Self.autoTurnOnKey) }
+  }
+  /// Called with `true` when the iPhone's proxy becomes reachable and `false` when it goes away, while
+  /// `autoTurnOn` is set. Fires only on transitions, so a manual toggle sticks until the next one.
+  @ObservationIgnored var onAutoTurnOn: ((Bool) -> Void)?
   private var forwarder: LocalForwarder?
   private var monitor: Timer?
   private var statsTimer: Timer?
@@ -81,9 +88,14 @@ final class PhoneForwarder {
     Task.detached {
       let result = route.refresh()
       await MainActor.run {
+        let wasReachable = self.link != .none
+        let isReachable = result.link != .none
         self.link = result.link
         self.detected = result.detected
         self.hint = result.hint
+        if self.autoTurnOn, wasReachable != isReachable {
+          self.onAutoTurnOn?(isReachable)
+        }
       }
     }
   }
