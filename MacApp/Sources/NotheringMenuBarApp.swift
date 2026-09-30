@@ -36,6 +36,7 @@ struct NotheringMenuBarApp: App {
         Divider()
         VStack(alignment: .leading, spacing: 4) {
           Text("iPhone: \(forwarder.link.rawValue)")
+          if let hint = forwarder.hint { Text(hint) }
           Text(Self.describe(forwarder.stats))
           if let error = forwarder.error {
             Text(error).foregroundStyle(.red)
