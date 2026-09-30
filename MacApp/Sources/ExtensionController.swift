@@ -9,10 +9,18 @@ import SystemExtensions
 @Observable
 final class ExtensionController: NSObject {
   static let extensionIdentifier = "app.nothering.mac.proxy"
+  static let approvalSettingsURL = URL(string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension")!
+  private static let hasTurnedOnKey = "hasTurnedOn"
 
   private(set) var status = "Off"
   private(set) var isRunning = false
   private(set) var isExtensionInstalled = false
+  /// Whether macOS holds the extension until the user allows it in System Settings.
+  private(set) var needsApproval = false
+  /// Whether capture has been on before, so the user already allowed the proxy configurations macOS asks about.
+  private(set) var hasTurnedOn = UserDefaults.standard.bool(forKey: hasTurnedOnKey) {
+    didSet { UserDefaults.standard.set(hasTurnedOn, forKey: Self.hasTurnedOnKey) }
+  }
   private var manager: NETransparentProxyManager?
 
   override init() {
@@ -96,7 +104,9 @@ final class ExtensionController: NSObject {
     let connectionStatus = manager?.connection.status ?? .invalid
     isRunning = connectionStatus == .connected || connectionStatus == .connecting
     switch connectionStatus {
-    case .connected: status = "On"
+    case .connected:
+      status = "On"
+      hasTurnedOn = true
     case .connecting: status = "Turning on…"
     case .disconnecting: status = "Turning off…"
     default: if !status.hasPrefix("Error"), !status.hasPrefix("Install") { status = "Off" }
@@ -115,14 +125,16 @@ extension ExtensionController: OSSystemExtensionRequestDelegate {
 
   nonisolated func requestNeedsUserApproval(_ request: OSSystemExtensionRequest) {
     Task { @MainActor in
+      needsApproval = true
       status = "Approve the extension in System Settings"
-      NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension")!)
+      NSWorkspace.shared.open(Self.approvalSettingsURL)
     }
   }
 
   nonisolated func request(_ request: OSSystemExtensionRequest, didFinishWithResult result: OSSystemExtensionRequest.Result) {
     Task { @MainActor in
       isExtensionInstalled = result == .completed
+      needsApproval = false
       status = "Off"
       refreshStatus()
     }
@@ -131,6 +143,7 @@ extension ExtensionController: OSSystemExtensionRequestDelegate {
   nonisolated func request(_ request: OSSystemExtensionRequest, didFailWithError error: Error) {
     Task { @MainActor in
       isExtensionInstalled = false
+      needsApproval = false
       status = "Error: \(error.localizedDescription)"
     }
   }
