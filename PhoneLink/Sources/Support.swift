@@ -1,8 +1,20 @@
 import Foundation
 
 public struct LinkError: LocalizedError {
+  public enum Kind {
+    case generic
+    case noUSBDevice
+    case usbmuxdUnavailable
+  }
+
   public let message: String
-  public init(_ message: String) { self.message = message }
+  public let kind: Kind
+
+  public init(_ message: String, kind: Kind = .generic) {
+    self.message = message
+    self.kind = kind
+  }
+
   public var errorDescription: String? { message }
 }
 
