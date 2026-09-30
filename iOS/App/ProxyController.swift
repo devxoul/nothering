@@ -25,7 +25,7 @@ final class ProxyController {
   }
 
   static let sampleWindow = 60
-  /// The Mac keeps connections open only while traffic flows and probes the hotspot every 10 seconds,
+  /// The Mac keeps connections open only while traffic flows and probes the phone every 10 seconds,
   /// so a link stays connected for a while after its last connection.
   private static let linkTimeout: Duration = .seconds(15)
 
