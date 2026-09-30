@@ -15,6 +15,8 @@ final class ProxyController {
   private(set) var startedAt: Date?
   /// Per-second throughput for the last `sampleWindow` seconds, oldest first.
   private(set) var samples: [ThroughputSample] = []
+  /// Links the Mac had a connection on within the last `linkTimeout`.
+  private(set) var macLinks: Set<ProxyServer.Link> = []
 
   struct ThroughputSample: Identifiable {
     let id: Int
@@ -23,10 +25,14 @@ final class ProxyController {
   }
 
   static let sampleWindow = 60
+  /// The Mac keeps connections open only while traffic flows and probes the phone every 10 seconds,
+  /// so a link stays connected for a while after its last connection.
+  private static let linkTimeout: Duration = .seconds(15)
 
   private var server: ProxyServer?
   private var sampleIndex = 0
   private var lastSampledAt = ContinuousClock.now
+  private var linkSeenAt: [ProxyServer.Link: ContinuousClock.Instant] = [:]
   private let keeper = BackgroundKeeper()
   private var statsTimer: Timer?
 
@@ -53,6 +59,8 @@ final class ProxyController {
     self.server = server
     stats = ProxyServer.Stats()
     samples = []
+    macLinks = []
+    linkSeenAt = [:]
     startedAt = .now
     lastSampledAt = .now
     isRunning = true
@@ -89,5 +97,17 @@ final class ProxyController {
     if samples.count > Self.sampleWindow {
       samples.removeFirst(samples.count - Self.sampleWindow)
     }
+    refreshMacLinks(previous: previous, now: now)
+  }
+
+  /// Also counts connections opened since the last refresh: hotspot probes close well within a second.
+  private func refreshMacLinks(previous: ProxyServer.Stats, now: ContinuousClock.Instant) {
+    if stats.activeUSBConnections > 0 || stats.totalUSBConnections > previous.totalUSBConnections {
+      linkSeenAt[.usb] = now
+    }
+    if stats.activeHotspotConnections > 0 || stats.totalHotspotConnections > previous.totalHotspotConnections {
+      linkSeenAt[.hotspot] = now
+    }
+    macLinks = Set(linkSeenAt.filter { now - $0.value < Self.linkTimeout }.keys)
   }
 }

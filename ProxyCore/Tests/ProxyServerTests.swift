@@ -123,6 +123,34 @@ private let loopback = NWEndpoint.Host.ipv4(.loopback)
     #expect(server.currentStats().totalConnections == 0)
   }
 
+  @Test(arguments: [
+    ("lo0", ProxyServer.Link.usb),
+    ("bridge100", .hotspot),
+    ("en0", nil),
+    ("pdp_ip0", nil),
+  ])
+  func classifiesLinkByInterface(name: String, link: ProxyServer.Link?) {
+    #expect(ProxyServer.Link(interface: name) == link)
+  }
+
+  @Test func countsLoopbackClientsAsUSB() async throws {
+    let (server, proxyPort) = try await startProxy()
+    defer { server.stop() }
+
+    let client = try await socksHandshake(proxyPort: proxyPort)
+    var stats = server.currentStats()
+    #expect(stats.activeUSBConnections == 1)
+    #expect(stats.totalUSBConnections == 1)
+    #expect(stats.activeHotspotConnections == 0)
+    #expect(stats.totalHotspotConnections == 0)
+
+    client.cancel()
+    #expect(try await eventually { server.currentStats().activeConnections == 0 })
+    stats = server.currentStats()
+    #expect(stats.activeUSBConnections == 0)
+    #expect(stats.totalUSBConnections == 1)
+  }
+
   @Test func resolvesLoopbackInterfaceForAcceptedClients() async throws {
     let recorded = RecordedInterfaces()
     let server = ProxyServer(configuration: .init(port: .any, requiredInterfaceType: nil, isInterfaceAllowed: {
@@ -156,6 +184,15 @@ private func startProxy() async throws -> (ProxyServer, NWEndpoint.Port) {
   let server = ProxyServer(configuration: .init(port: .any, requiredInterfaceType: nil))
   let port = try await server.start()
   return (server, port)
+}
+
+private func eventually(_ condition: () -> Bool) async throws -> Bool {
+  let deadline = ContinuousClock.now + .seconds(2)
+  while !condition() {
+    guard ContinuousClock.now < deadline else { return false }
+    try await Task.sleep(for: .milliseconds(10))
+  }
+  return true
 }
 
 private func portBytes(_ port: NWEndpoint.Port) -> Data {
