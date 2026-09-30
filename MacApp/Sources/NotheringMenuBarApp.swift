@@ -33,10 +33,14 @@ struct NotheringMenuBarApp: App {
             .toggleStyle(.switch)
             .labelsHidden()
         }
+        let setup = SetupChecklist(controller: controller, forwarder: forwarder)
+        if !setup.isComplete {
+          Divider()
+          setup
+        }
         Divider()
         VStack(alignment: .leading, spacing: 4) {
           Text("iPhone: \(forwarder.link.rawValue)")
-          if let hint = forwarder.hint { Text(hint) }
           Text(Self.describe(forwarder.stats))
           if let error = forwarder.error {
             Text(error).foregroundStyle(.red)
@@ -49,14 +53,8 @@ struct NotheringMenuBarApp: App {
         }
         .pickerStyle(.segmented)
         Divider()
-        Toggle("Launch at Login", isOn: Binding(get: { launchesAtLogin }, set: setLaunchesAtLogin))
         HStack {
-          if controller.isExtensionInstalled {
-            Label("Extension Installed", systemImage: "checkmark.circle.fill")
-              .foregroundStyle(.secondary)
-          } else {
-            Button("Install Extension") { controller.installExtension() }
-          }
+          Toggle("Launch at Login", isOn: Binding(get: { launchesAtLogin }, set: setLaunchesAtLogin))
           Spacer()
           Button("Quit Nothering") { NSApplication.shared.terminate(nil) }
         }
