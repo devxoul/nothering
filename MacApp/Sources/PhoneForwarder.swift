@@ -46,9 +46,9 @@ final class PhoneForwarder {
   var autoTurnOn = UserDefaults.standard.bool(forKey: autoTurnOnKey) {
     didSet { UserDefaults.standard.set(autoTurnOn, forKey: Self.autoTurnOnKey) }
   }
-  /// Called when the iPhone's proxy becomes reachable and `autoTurnOn` is set. Fires only on the transition,
-  /// so turning capture off by hand sticks until the proxy goes away and comes back.
-  @ObservationIgnored var onAutoTurnOn: (() -> Void)?
+  /// Called with `true` when the iPhone's proxy becomes reachable and `false` when it goes away, while
+  /// `autoTurnOn` is set. Fires only on transitions, so a manual toggle sticks until the next one.
+  @ObservationIgnored var onAutoTurnOn: ((Bool) -> Void)?
   private var forwarder: LocalForwarder?
   private var monitor: Timer?
   private var statsTimer: Timer?
@@ -89,11 +89,12 @@ final class PhoneForwarder {
       let result = route.refresh()
       await MainActor.run {
         let wasReachable = self.link != .none
+        let isReachable = result.link != .none
         self.link = result.link
         self.detected = result.detected
         self.hint = result.hint
-        if self.autoTurnOn, !wasReachable, result.link != .none {
-          self.onAutoTurnOn?()
+        if self.autoTurnOn, wasReachable != isReachable {
+          self.onAutoTurnOn?(isReachable)
         }
       }
     }
