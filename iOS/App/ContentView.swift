@@ -68,7 +68,6 @@ struct ContentView: View {
 
 private struct StatusCard: View {
   let controller: ProxyController
-  @State private var pulse = false
   @Environment(\.colorScheme) private var colorScheme
 
   private static let accent = Color(red: 0.25, green: 0.85, blue: 0.85)
@@ -81,10 +80,7 @@ private struct StatusCard: View {
   var body: some View {
     VStack(spacing: 16) {
       ZStack {
-        tile
-          .stroke(Self.accent, lineWidth: 3)
-          .scaleEffect(pulse ? 1.3 : 1)
-          .opacity(controller.isRunning ? (pulse ? 0 : 0.8) : 0)
+        PulseRing(shape: tile, color: Self.accent, startedAt: controller.startedAt)
         Image(.hero)
           .resizable()
           .scaledToFit()
@@ -112,9 +108,9 @@ private struct StatusCard: View {
         }
       }
 
-      if controller.isRunning {
-        MacLinkLabel(links: controller.macLinks)
-      }
+      MacLinkLabel(links: controller.macLinks)
+        .opacity(controller.isRunning ? 1 : 0)
+        .accessibilityHidden(!controller.isRunning)
 
       Button {
         Task { await controller.toggle() }
@@ -138,14 +134,32 @@ private struct StatusCard: View {
     .frame(maxWidth: .infinity)
     .padding(.vertical, 24)
     .animation(.easeInOut, value: controller.isRunning)
-    .onChange(of: controller.isRunning, initial: true) { _, running in
-      pulse = false
-      if running {
-        withAnimation(.easeOut(duration: 1.6).repeatForever(autoreverses: false)) {
-          pulse = true
-        }
-      }
+  }
+}
+
+/// Driven by the clock instead of a repeating animation, so layout animations can't leak into it.
+private struct PulseRing: View {
+  let shape: RoundedRectangle
+  let color: Color
+  let startedAt: Date?
+
+  private static let period = 1.6
+
+  var body: some View {
+    TimelineView(.animation(paused: startedAt == nil)) { context in
+      let progress = progress(at: context.date)
+      shape
+        .stroke(color, lineWidth: 3)
+        .scaleEffect(1 + 0.3 * progress)
+        .opacity(startedAt == nil ? 0 : 0.8 * (1 - progress))
     }
+  }
+
+  /// Ease-out phase within the current cycle, 0...1.
+  private func progress(at date: Date) -> Double {
+    guard let startedAt else { return 0 }
+    let t = date.timeIntervalSince(startedAt).truncatingRemainder(dividingBy: Self.period) / Self.period
+    return 1 - pow(1 - t, 2)
   }
 }
 
