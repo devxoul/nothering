@@ -58,7 +58,8 @@ final class TransparentProxyProvider: NETransparentProxyProvider {
     // WireGuard UDP, DERP over the phone is what keeps the tailnet, and MagicDNS, working.
     let source = flow.metaData.sourceAppSigningIdentifier
     if let flow = flow as? NEAppProxyUDPFlow {
-      guard !Self.isNetworkExtension(source) else { return false }
+      // An older phone app can't relay UDP; send it direct rather than failing it.
+      guard reachability.supportsDatagrams, !Self.isNetworkExtension(source) else { return false }
       relayDatagrams(flow)
       return true
     }
