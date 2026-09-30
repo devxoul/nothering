@@ -1,0 +1,103 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (x.y.z)"
+        required: true
+
+# One release at a time, never cancelled: the TestFlight upload can't be undone,
+# and the tag is only created after it succeeds.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+# Push the version bump commit and tag, create the GitHub Release.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-26
+    timeout-minutes: 60
+
+    env:
+      VERSION: ${{ inputs.version }}
+      MATCH_GIT_URL: https://github.com/devxoul/nothering-match.git
+      MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+      # Read directly by fastlane's app_store_connect_api_key action.
+      APP_STORE_CONNECT_API_KEY_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      APP_STORE_CONNECT_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_API_KEY_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8_BASE64 }}
+      APP_STORE_CONNECT_API_KEY_IS_KEY_CONTENT_BASE64: "true"
+
+    steps:
+      # Validate before anything is mutated: the value ends up in git and fastlane commands.
+      - name: Validate version
+        run: |
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid version: '$VERSION' (expected strict x.y.z)"
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Ensure tag does not already exist
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$VERSION" >/dev/null 2>&1; then
+            echo "::error::Tag '$VERSION' already exists. Release the next version instead."
+            exit 1
+          fi
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # Same pinned Tuist as ci.yml.
+      - name: Install Tuist
+        uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2
+
+      - name: Set up Ruby and fastlane
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+
+      # match clones the private certificates repo over HTTPS with base64("user:PAT").
+      - name: Set up match git authorization
+        env:
+          PAT: ${{ secrets.MATCH_GITHUB_PAT }}
+        run: |
+          auth=$(printf '%s' "devxoul:${PAT}" | base64 | tr -d '\n')
+          echo "::add-mask::$auth"
+          echo "MATCH_GIT_BASIC_AUTHORIZATION=$auth" >> "$GITHUB_ENV"
+
+      # Commits locally only; pushed after the upload succeeds.
+      - name: Bump version
+        run: bundle exec fastlane bump version:"$VERSION"
+
+      # Notarized Mac app + CLI into build/fastlane/, then the iPhone app to TestFlight.
+      - name: Build and upload
+        run: bundle exec fastlane release
+
+      - name: Push commit and tag
+        run: |
+          git push origin HEAD:main
+          git tag "$VERSION"
+          git push origin "refs/tags/$VERSION"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$VERSION" \
+            "build/fastlane/Nothering-$VERSION.zip" \
+            "build/fastlane/nothering-cli-$VERSION.zip" \
+            --title "$VERSION" \
+            --generate-notes

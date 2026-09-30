@@ -11,8 +11,10 @@ let baseSettings: SettingsDictionary = [
 
 let version: [String: Plist.Value] = [
   "CFBundleShortVersionString": "0.1.0",
-  "CFBundleVersion": "1",
+  "CFBundleVersion": .string(Environment.buildNumber.getString(default: "1")),
 ]
+
+let hardenedRuntime: SettingsDictionary = ["ENABLE_HARDENED_RUNTIME": "YES"]
 
 let localNetworkUsage: [String: Plist.Value] = [
   "NSLocalNetworkUsageDescription": "Nothering accepts proxy connections from devices on your Personal Hotspot.",
@@ -50,6 +52,7 @@ let project = Project(
         "CFBundleDisplayName": "Nothering",
         "UILaunchScreen": [:],
         "UIBackgroundModes": ["audio"],
+        "ITSAppUsesNonExemptEncryption": false,
       ]) { $1 }),
       sources: ["iOS/App/**"],
       resources: ["Shared/AppIcon.icon", "iOS/Resources/**"],
@@ -81,7 +84,8 @@ let project = Project(
       deploymentTargets: .macOS("15.0"),
       infoPlist: .extendingDefault(with: version),
       sources: ["Mac/Sources/**"],
-      dependencies: [.target(name: "ProxyCore"), .target(name: "PhoneLink")]
+      dependencies: [.target(name: "ProxyCore"), .target(name: "PhoneLink")],
+      settings: .settings(base: hardenedRuntime)
     ),
     .target(
       name: "NotheringMenuBar",
@@ -103,7 +107,7 @@ let project = Project(
         .target(name: "ProxyCore"),
         .target(name: "PhoneLink"),
       ],
-      settings: .settings(base: ["CODE_SIGN_IDENTITY[sdk=macosx*]": "Apple Development"])
+      settings: .settings(base: hardenedRuntime.merging(["CODE_SIGN_IDENTITY[sdk=macosx*]": "Apple Development"]) { $1 })
     ),
     .target(
       name: "NotheringProxyExtension",
@@ -132,11 +136,11 @@ let project = Project(
         ),
       ],
       dependencies: [.target(name: "PhoneLink"), .target(name: "ProxyCore")],
-      settings: .settings(base: [
+      settings: .settings(base: hardenedRuntime.merging([
         "CODE_SIGN_IDENTITY[sdk=macosx*]": "Apple Development",
         "PRODUCT_MODULE_NAME": "NotheringProxyExtension",
         "ENABLE_USER_SCRIPT_SANDBOXING": "NO",
-      ])
+      ]) { $1 })
     ),
   ]
 )

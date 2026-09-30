@@ -70,6 +70,26 @@ Set your own `teamID` (and optionally `bundleIDPrefix`) in [`Project.swift`](Pro
 | `NotheringMac` | `nothering` CLI |
 | `ProxyCore`, `PhoneLink` | Libraries + unit tests (`tuist test ProxyCore`) |
 
+### Release
+
+Releases go through [fastlane](https://fastlane.tools) with [match](https://docs.fastlane.tools/actions/match/) handling signing. Set these in the environment or in `fastlane/.env`:
+
+| Variable | Purpose |
+|---|---|
+| `MATCH_GIT_URL`, `MATCH_PASSWORD` | Private certificates repo and its passphrase |
+| `APP_STORE_CONNECT_API_KEY_KEY_ID`, `APP_STORE_CONNECT_API_KEY_ISSUER_ID`, `APP_STORE_CONNECT_API_KEY_KEY_FILEPATH` | App Store Connect API key (`.p8`) |
+
+```sh
+bundle install
+bundle exec fastlane release      # both below, sharing one build number
+bundle exec fastlane ios beta     # iPhone app → TestFlight (build number = latest + 1)
+bundle exec fastlane mac release  # Mac app + CLI → Developer ID, notarized zips in build/fastlane/
+```
+
+`ios beta` and `mac release` accept `build_number:<n>`. Set `MATCH_READONLY=true` to stop match from creating new certificates or profiles.
+
+Published releases go through the **Release** GitHub Actions workflow (`gh workflow run release.yml -f version=X.Y.Z`): it uploads the iPhone app to TestFlight and attaches the notarized Mac app and CLI to a GitHub Release. See [`AGENTS.md`](AGENTS.md#release) for the full process.
+
 ### Use
 
 1. **iPhone** — open Nothering and tap **Start Proxy**.
