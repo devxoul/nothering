@@ -9,6 +9,11 @@ let baseSettings: SettingsDictionary = [
   "SWIFT_VERSION": "5.0",
 ]
 
+let version: [String: Plist.Value] = [
+  "CFBundleShortVersionString": "0.1.0",
+  "CFBundleVersion": "1",
+]
+
 let localNetworkUsage: [String: Plist.Value] = [
   "NSLocalNetworkUsageDescription": "Nothering accepts proxy connections from devices on your Personal Hotspot.",
 ]
@@ -41,7 +46,7 @@ let project = Project(
       productName: "Nothering",
       bundleId: "\(bundleIDPrefix).ios",
       deploymentTargets: .iOS("18.0"),
-      infoPlist: .extendingDefault(with: localNetworkUsage.merging([
+      infoPlist: .extendingDefault(with: version.merging(localNetworkUsage) { $1 }.merging([
         "CFBundleDisplayName": "Nothering",
         "UILaunchScreen": [:],
         "UIBackgroundModes": ["audio"],
@@ -74,6 +79,7 @@ let project = Project(
       productName: "nothering",
       bundleId: "\(bundleIDPrefix).cli",
       deploymentTargets: .macOS("15.0"),
+      infoPlist: .extendingDefault(with: version),
       sources: ["Mac/Sources/**"],
       dependencies: [.target(name: "ProxyCore"), .target(name: "PhoneLink")]
     ),
@@ -84,11 +90,11 @@ let project = Project(
       productName: "Nothering",
       bundleId: "\(bundleIDPrefix).mac",
       deploymentTargets: .macOS("15.0"),
-      infoPlist: .extendingDefault(with: [
+      infoPlist: .extendingDefault(with: version.merging([
         "CFBundleDisplayName": "Nothering",
         "LSUIElement": true,
         "CFBundleURLTypes": [["CFBundleURLName": "app.nothering.mac", "CFBundleURLSchemes": ["nothering"]]],
-      ]),
+      ]) { $1 }),
       sources: ["MacApp/Sources/**"],
       resources: ["MacApp/Resources/**", "Shared/AppIcon.icon"],
       entitlements: "MacApp/App.entitlements",
@@ -106,8 +112,7 @@ let project = Project(
       productName: "\(bundleIDPrefix).mac.proxy",
       bundleId: "\(bundleIDPrefix).mac.proxy",
       deploymentTargets: .macOS("15.0"),
-      infoPlist: .extendingDefault(with: [
-        "CFBundleVersion": "1",
+      infoPlist: .extendingDefault(with: version.merging([
         "NSSystemExtensionUsageDescription": "Nothering routes your Mac's network connections through your iPhone.",
         "NetworkExtension": [
           "NEMachServiceName": "$(TeamIdentifierPrefix)app.nothering.mac.proxy",
@@ -116,7 +121,7 @@ let project = Project(
             "com.apple.networkextension.dns-proxy": "$(PRODUCT_MODULE_NAME).DNSProxyProvider",
           ],
         ],
-      ]),
+      ]) { $1 }),
       sources: ["MacProxy/Sources/**"],
       entitlements: "MacProxy/Proxy.entitlements",
       scripts: [
