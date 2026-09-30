@@ -1,4 +1,5 @@
 import ProxyCore
+import ServiceManagement
 import SwiftUI
 
 @main
@@ -6,6 +7,7 @@ struct NotheringMenuBarApp: App {
   @NSApplicationDelegateAdaptor private var appDelegate: AppDelegate
   @State private var controller: ExtensionController
   @State private var forwarder: PhoneForwarder
+  @State private var launchesAtLogin = SMAppService.mainApp.status == .enabled
 
   init() {
     let forwarder = PhoneForwarder()
@@ -33,9 +35,16 @@ struct NotheringMenuBarApp: App {
       Button(controller.isRunning ? "Turn Off" : "Turn On") {
         Task { await controller.toggle() }
       }
+      Toggle("Launch at Login", isOn: Binding(get: { launchesAtLogin }, set: setLaunchesAtLogin))
       Divider()
       Button("Quit Nothering") { NSApplication.shared.terminate(nil) }
     }
+  }
+
+  private func setLaunchesAtLogin(_ enabled: Bool) {
+    // Re-reading the status afterwards reflects a failed (un)registration in the toggle.
+    try? enabled ? SMAppService.mainApp.register() : SMAppService.mainApp.unregister()
+    launchesAtLogin = SMAppService.mainApp.status == .enabled
   }
 
   private static func describe(_ stats: LocalForwarder.Stats) -> String {
