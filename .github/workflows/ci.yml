@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  NO_SIGN: CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+
+jobs:
+  build:
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Installs the Tuist version pinned in mise.toml, keeping CI and local dev
+      # in sync. Not Homebrew: the tuist tap's cask declares `conflicts_with
+      # formula:`, a key Homebrew 6 dropped, which aborts any `tuist` lookup in
+      # the tap. See tuist/homebrew-tuist#41.
+      - name: Install Tuist
+        uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2
+
+      - name: Generate Project
+        run: tuist generate --no-open
+
+      - name: Build Mac
+        run: |
+          xcodebuild build \
+            -workspace Nothering.xcworkspace \
+            -scheme NotheringMenuBar \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            $NO_SIGN
+          xcodebuild build \
+            -workspace Nothering.xcworkspace \
+            -scheme NotheringMac \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            $NO_SIGN
+
+      - name: Build iOS
+        run: |
+          xcodebuild build \
+            -workspace Nothering.xcworkspace \
+            -scheme NotheringiOS \
+            -configuration Debug \
+            -destination 'generic/platform=iOS' \
+            $NO_SIGN
+
+      - name: Test
+        run: |
+          for scheme in ProxyCore PhoneLink; do
+            xcodebuild test \
+              -workspace Nothering.xcworkspace \
+              -scheme "$scheme" \
+              -configuration Debug \
+              -destination 'platform=macOS' \
+              $NO_SIGN
+          done
