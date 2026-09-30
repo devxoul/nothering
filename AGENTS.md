@@ -56,7 +56,7 @@ Report the result with the GitHub Release URL (`gh release view X.Y.Z --json url
 2. `fastlane bump version:X.Y.Z` sets the version in `Project.swift` and commits locally.
 3. `fastlane release` picks one build number (latest TestFlight build + 1) for both apps, then:
    - builds the Mac app and CLI, signs with Developer ID, notarizes, and zips them to `build/fastlane/`;
-   - builds the iPhone app and uploads it to TestFlight (internal testers).
+   - builds the iPhone app and uploads it to TestFlight, waits for processing, and submits it to the external **Beta Testers** group (goes through Beta App Review).
 4. Only after all of that succeeds: pushes the bump commit to `main`, tags `X.Y.Z`, and creates the GitHub Release with `Nothering-X.Y.Z.zip` and `nothering-cli-X.Y.Z.zip` attached.
 
 ### If a release fails

@@ -9,6 +9,8 @@ IOS_APP_ID = "app.nothering.ios"
 MAC_APP_ID = "app.nothering.mac"
 MAC_EXTENSION_ID = "app.nothering.mac.proxy"
 
+EXTERNAL_TESTER_GROUP = "Beta Testers"
+
 VERSION_PATTERN = /("CFBundleShortVersionString": ")([^"]+)(")/
 
 before_all do
@@ -109,7 +111,10 @@ def build_ios(api_key, build_number)
   upload_to_testflight(
     api_key: api_key,
     changelog: changelog.empty? ? nil : changelog,
-    skip_waiting_for_build_processing: true
+    # External groups need a processed build, so wait for it and submit it for beta review.
+    distribute_external: true,
+    groups: [EXTERNAL_TESTER_GROUP],
+    notify_external_testers: true
   )
 end
 
