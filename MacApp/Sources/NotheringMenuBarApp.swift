@@ -1,5 +1,3 @@
-import ProxyCore
-import ServiceManagement
 import SwiftUI
 
 @main
@@ -7,7 +5,6 @@ struct NotheringMenuBarApp: App {
   @NSApplicationDelegateAdaptor private var appDelegate: AppDelegate
   @State private var controller: ExtensionController
   @State private var forwarder: PhoneForwarder
-  @State private var launchesAtLogin = SMAppService.mainApp.status == .enabled
 
   init() {
     Self.relaunchFromApplicationsIfNeeded()
@@ -31,59 +28,9 @@ struct NotheringMenuBarApp: App {
 
   var body: some Scene {
     MenuBarExtra("Nothering", image: controller.isRunning ? "MenuBarIcon" : "MenuBarIconOff") {
-      VStack(alignment: .leading, spacing: 10) {
-        HStack {
-          VStack(alignment: .leading, spacing: 2) {
-            Text("Nothering").font(.headline)
-            Text(controller.status).font(.subheadline).foregroundStyle(.secondary).lineLimit(3)
-          }
-          Spacer()
-          Toggle("Nothering", isOn: Binding(get: { controller.isRunning }, set: { _ in Task { await controller.toggle() } }))
-            .toggleStyle(.switch)
-            .labelsHidden()
-        }
-        if !controller.hasTurnedOn {
-          Text("macOS will ask twice to add proxies — allow both")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
-        let setup = SetupChecklist(controller: controller, forwarder: forwarder)
-        if !setup.isComplete {
-          Divider()
-          setup
-        }
-        Divider()
-        VStack(alignment: .leading, spacing: 4) {
-          Text("iPhone: \(forwarder.link.rawValue)")
-          Text(Self.describe(forwarder.stats))
-          if let error = forwarder.error {
-            Text(error).foregroundStyle(.red)
-          }
-        }
-        .font(.callout)
-        .foregroundStyle(.secondary)
-        Picker("Link", selection: $forwarder.preference) {
-          ForEach(PhoneForwarder.Preference.allCases, id: \.self) { Text($0.rawValue) }
-        }
-        .pickerStyle(.segmented)
-        Toggle("Turn on and off with iPhone proxy", isOn: $forwarder.autoTurnOn)
-        Divider()
-        HStack {
-          Toggle("Launch at Login", isOn: Binding(get: { launchesAtLogin }, set: setLaunchesAtLogin))
-          Spacer()
-          Button("Quit Nothering") { NSApplication.shared.terminate(nil) }
-        }
-      }
-      .padding(14)
-      .frame(width: 300)
+      MenuBarPanel(controller: controller, forwarder: forwarder)
     }
     .menuBarExtraStyle(.window)
-  }
-
-  private func setLaunchesAtLogin(_ enabled: Bool) {
-    // Re-reading the status afterwards reflects a failed (un)registration in the toggle.
-    try? enabled ? SMAppService.mainApp.register() : SMAppService.mainApp.unregister()
-    launchesAtLogin = SMAppService.mainApp.status == .enabled
   }
 
   /// macOS only activates system extensions from apps in /Applications, so a build run from elsewhere
@@ -107,12 +54,6 @@ struct NotheringMenuBarApp: App {
     } catch {
       NSLog("Nothering: could not relaunch from /Applications: \(error)")
     }
-  }
-
-  private static func describe(_ stats: LocalForwarder.Stats) -> String {
-    let up = ByteCountFormatter.string(fromByteCount: Int64(stats.bytesUp), countStyle: .file)
-    let down = ByteCountFormatter.string(fromByteCount: Int64(stats.bytesDown), countStyle: .file)
-    return "↑ \(up)  ↓ \(down)  ·  \(stats.activeConnections) connections"
   }
 }
 
