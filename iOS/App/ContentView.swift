@@ -29,7 +29,7 @@ struct ContentView: View {
         } header: {
           Text("Connect from Mac")
         } footer: {
-          Text("Connect the Mac to this iPhone's Personal Hotspot and use the Mac's default gateway (this iPhone) as the SOCKS5 host. Outbound connections use cellular only.")
+          Text("Connect your Mac with a USB cable or join this iPhone's Personal Hotspot, then turn on Nothering in the Mac menu bar app. Outbound connections use cellular only.")
         }
 
         Section("Traffic") {
