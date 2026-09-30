@@ -107,7 +107,7 @@ let project = Project(
       bundleId: "\(bundleIDPrefix).mac.proxy",
       deploymentTargets: .macOS("15.0"),
       infoPlist: .extendingDefault(with: [
-        "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
+        "CFBundleVersion": "1",
         "NSSystemExtensionUsageDescription": "Nothering routes your Mac's network connections through your iPhone.",
         "NetworkExtension": [
           "NEMachServiceName": "$(TeamIdentifierPrefix)app.nothering.mac.proxy",
@@ -119,10 +119,18 @@ let project = Project(
       ]),
       sources: ["MacProxy/Sources/**"],
       entitlements: "MacProxy/Proxy.entitlements",
+      scripts: [
+        .post(
+          script: #"/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $(date +%s)" "$TARGET_BUILD_DIR/$INFOPLIST_PATH""#,
+          name: "Stamp Build Version",
+          basedOnDependencyAnalysis: false
+        ),
+      ],
       dependencies: [.target(name: "PhoneLink"), .target(name: "ProxyCore")],
       settings: .settings(base: [
         "CODE_SIGN_IDENTITY[sdk=macosx*]": "Apple Development",
         "PRODUCT_MODULE_NAME": "NotheringProxyExtension",
+        "ENABLE_USER_SCRIPT_SANDBOXING": "NO",
       ])
     ),
   ]
