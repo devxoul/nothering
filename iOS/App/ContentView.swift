@@ -41,7 +41,7 @@ struct ContentView: View {
           LabeledContent("Received", value: formatBytes(controller.stats.bytesDown))
         }
 
-        Section("About") {
+        Section {
           LabeledContent("Version", value: appVersion)
           Link(destination: URL(string: "https://github.com/devxoul/nothering")!) {
             LabeledContent {
@@ -55,6 +55,12 @@ struct ContentView: View {
                 .foregroundStyle(Color.primary)
             }
           }
+        } header: {
+          Text("About")
+        } footer: {
+          Text("Made with \(Text(Image(systemName: "heart.fill")).foregroundStyle(.red)) in Seoul")
+            .frame(maxWidth: .infinity)
+            .padding(.top, 24)
         }
       }
       .navigationTitle("Nothering")
