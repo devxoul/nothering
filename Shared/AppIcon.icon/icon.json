@@ -1,0 +1,52 @@
+{
+  "fill" : {
+    "linear-gradient" : [
+      "display-p3:0.04314,0.05882,0.10196,1.00000",
+      "srgb:0.10196,0.12941,0.25098,1.00000"
+    ],
+    "orientation" : {
+      "start" : {
+        "x" : 0.5,
+        "y" : 0
+      },
+      "stop" : {
+        "x" : 0.5,
+        "y" : 0.7
+      }
+    }
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "blend-mode" : "normal",
+          "glass" : false,
+          "hidden" : false,
+          "image-name" : "nothering.png",
+          "name" : "nothering",
+          "position" : {
+            "scale" : 0.75,
+            "translation-in-points" : [
+              4.5499999999999545,
+              -12.25
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}

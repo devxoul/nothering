@@ -47,6 +47,7 @@ let project = Project(
         "UIBackgroundModes": ["audio"],
       ]) { $1 }),
       sources: ["iOS/App/**"],
+      resources: ["Shared/AppIcon.icon"],
       dependencies: [.target(name: "ProxyCore")]
     ),
     .target(
@@ -89,6 +90,7 @@ let project = Project(
         "CFBundleURLTypes": [["CFBundleURLName": "app.nothering.mac", "CFBundleURLSchemes": ["nothering"]]],
       ]),
       sources: ["MacApp/Sources/**"],
+      resources: ["Shared/AppIcon.icon"],
       entitlements: "MacApp/App.entitlements",
       dependencies: [
         .target(name: "NotheringProxyExtension"),
