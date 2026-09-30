@@ -1,4 +1,5 @@
 import Charts
+import ProxyCore
 import SwiftUI
 
 struct ContentView: View {
@@ -111,6 +112,10 @@ private struct StatusCard: View {
         }
       }
 
+      if controller.isRunning {
+        MacLinkLabel(links: controller.macLinks)
+      }
+
       Button {
         Task { await controller.toggle() }
       } label: {
@@ -140,6 +145,34 @@ private struct StatusCard: View {
           pulse = true
         }
       }
+    }
+  }
+}
+
+private struct MacLinkLabel: View {
+  let links: Set<ProxyServer.Link>
+
+  var body: some View {
+    let (title, symbol) = content
+    HStack(spacing: 6) {
+      Image(systemName: symbol)
+        .accessibilityHidden(true)
+      Text(title)
+    }
+    .font(.footnote.weight(.medium))
+    .foregroundStyle(links.isEmpty ? .secondary : .primary)
+    .padding(.horizontal, 12)
+    .padding(.vertical, 6)
+    .background(.fill.tertiary, in: .capsule)
+    .animation(.easeInOut, value: links)
+  }
+
+  private var content: (title: LocalizedStringKey, symbol: String) {
+    switch (links.contains(.usb), links.contains(.hotspot)) {
+    case (true, true): ("Mac connected via USB and Hotspot", "laptopcomputer.and.iphone")
+    case (true, false): ("Mac connected via USB", "cable.connector")
+    case (false, true): ("Mac connected via Personal Hotspot", "personalhotspot")
+    case (false, false): ("Waiting for Mac…", "laptopcomputer")
     }
   }
 }
