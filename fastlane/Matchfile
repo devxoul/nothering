@@ -1,0 +1,2 @@
+# Set MATCH_GIT_URL and MATCH_PASSWORD in the environment (or fastlane/.env).
+storage_mode("git")
