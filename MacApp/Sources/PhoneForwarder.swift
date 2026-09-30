@@ -27,7 +27,12 @@ final class PhoneForwarder {
 
   static let port: UInt16 = 11080
 
+  /// The link whose Nothering proxy answers; `.none` until the phone's proxy is reachable.
   private(set) var link = Link.none
+  /// How the iPhone itself is attached, whether or not its proxy is running.
+  private(set) var detected = Link.none
+  /// The next thing the user should do when the proxy isn't reachable, e.g. "Tap Start Proxy on your iPhone".
+  private(set) var hint: String?
   private(set) var error: String?
   private(set) var stats = LocalForwarder.Stats()
   var preference = Preference(rawValue: UserDefaults.standard.string(forKey: preferenceKey) ?? "") ?? .auto {
