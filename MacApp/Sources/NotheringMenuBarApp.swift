@@ -20,7 +20,7 @@ struct NotheringMenuBarApp: App {
   }
 
   var body: some Scene {
-    MenuBarExtra("Nothering", systemImage: controller.isRunning ? "iphone.radiowaves.left.and.right" : "iphone") {
+    MenuBarExtra("Nothering", image: "MenuBarIcon") {
       Text(controller.status)
       Text("iPhone: \(forwarder.link.rawValue)")
       Text(Self.describe(forwarder.stats))
