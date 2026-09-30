@@ -117,7 +117,7 @@ let project = Project(
       ]),
       sources: ["MacProxy/Sources/**"],
       entitlements: "MacProxy/Proxy.entitlements",
-      dependencies: [.target(name: "PhoneLink")],
+      dependencies: [.target(name: "PhoneLink"), .target(name: "ProxyCore")],
       settings: .settings(base: [
         "CODE_SIGN_IDENTITY[sdk=macosx*]": "Apple Development",
         "PRODUCT_MODULE_NAME": "NotheringProxyExtension",
