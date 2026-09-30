@@ -12,11 +12,19 @@ public enum SOCKS5 {
   public static func connect(_ fd: Int32, host: String, port: UInt16) throws {
     let name = Array(host.utf8)
     guard !name.isEmpty, name.count <= 255 else { throw LinkError("invalid SOCKS5 host \(host)") }
+    try greet(fd)
     try request(fd, command: 0x01, address: [0x03, UInt8(name.count)] + name + [UInt8(port >> 8), UInt8(port & 0xFF)])
   }
 
   /// Turns `fd` into a framed-UDP session; afterwards exchange frames with `readFrame` / `writeFrame`.
   public static func openDatagramSession(_ fd: Int32) throws {
+    try greet(fd)
+    try requestDatagramSession(fd)
+  }
+
+  /// Like `openDatagramSession`, on a socket that has already completed `greet`. Throws when the
+  /// proxy predates framed UDP.
+  public static func requestDatagramSession(_ fd: Int32) throws {
     try request(fd, command: datagramCommand, address: [0x01, 0, 0, 0, 0, 0, 0])
   }
 
@@ -32,7 +40,6 @@ public enum SOCKS5 {
   }
 
   private static func request(_ fd: Int32, command: UInt8, address: [UInt8]) throws {
-    try greet(fd)
     try writeAll(fd, [0x05, command, 0x00] + address)
     let reply = try readExactly(fd, 4)
     guard reply[1] == 0x00 else { throw LinkError("SOCKS5 command \(command) failed (code \(reply[1]))") }
