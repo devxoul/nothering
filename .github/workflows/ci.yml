@@ -3,14 +3,23 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore: ['**.md', 'LICENSE']
   pull_request:
     branches: [main]
+    paths-ignore: ['**.md', 'LICENSE']
+
+# A new push to a PR supersedes its in-flight run. Pushes to main always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  NO_SIGN: CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+  # Index-while-building only feeds the editor, so skip it on CI.
+  BUILD_FLAGS: CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO
 
 jobs:
-  build:
+  mac:
+    name: Mac (build + test)
     runs-on: macos-26
 
     steps:
@@ -27,37 +36,46 @@ jobs:
       - name: Generate Project
         run: tuist generate --no-open
 
-      - name: Build Mac
+      # The workspace scheme covers every macOS target (menu bar app, CLI,
+      # system extension, and both test bundles), so one invocation builds it
+      # all and the test run reuses those products.
+      - name: Build
         run: |
-          xcodebuild build \
+          xcodebuild build-for-testing \
             -workspace Nothering.xcworkspace \
-            -scheme NotheringMenuBar \
+            -scheme Nothering-Workspace \
             -configuration Debug \
             -destination 'platform=macOS' \
-            $NO_SIGN
-          xcodebuild build \
-            -workspace Nothering.xcworkspace \
-            -scheme NotheringMac \
-            -configuration Debug \
-            -destination 'platform=macOS' \
-            $NO_SIGN
+            $BUILD_FLAGS
 
-      - name: Build iOS
+      - name: Test
+        run: |
+          xcodebuild test-without-building \
+            -workspace Nothering.xcworkspace \
+            -scheme Nothering-Workspace \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            $BUILD_FLAGS
+
+  ios:
+    name: iOS (build)
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Tuist
+        uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2
+
+      - name: Generate Project
+        run: tuist generate --no-open
+
+      - name: Build
         run: |
           xcodebuild build \
             -workspace Nothering.xcworkspace \
             -scheme NotheringiOS \
             -configuration Debug \
             -destination 'generic/platform=iOS' \
-            $NO_SIGN
-
-      - name: Test
-        run: |
-          for scheme in ProxyCore PhoneLink; do
-            xcodebuild test \
-              -workspace Nothering.xcworkspace \
-              -scheme "$scheme" \
-              -configuration Debug \
-              -destination 'platform=macOS' \
-              $NO_SIGN
-          done
+            $BUILD_FLAGS
