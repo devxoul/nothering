@@ -4,6 +4,7 @@ import SwiftUI
 
 struct ContentView: View {
   @State private var controller = ProxyController()
+  @Environment(\.scenePhase) private var scenePhase
 
   var body: some View {
     NavigationStack {
@@ -58,8 +59,13 @@ struct ContentView: View {
       }
       .navigationTitle("Nothering")
       .task {
-        if CommandLine.arguments.contains("--autostart"), !controller.isRunning {
+        if CommandLine.arguments.contains("--autostart") || controller.shouldRestore, !controller.isRunning {
           await controller.start()
+        }
+      }
+      .onChange(of: scenePhase) { _, phase in
+        if phase == .active {
+          controller.resumeKeeper()
         }
       }
     }

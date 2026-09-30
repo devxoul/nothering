@@ -36,6 +36,19 @@ final class ProxyController {
   private let keeper = BackgroundKeeper()
   private var statsTimer: Timer?
 
+  /// Whether the user left the proxy on, so a relaunch after iOS terminated the app starts it again.
+  private static let wasRunningKey = "wasRunning"
+
+  var shouldRestore: Bool {
+    UserDefaults.standard.bool(forKey: Self.wasRunningKey)
+  }
+
+  /// Called when the app becomes active, in case the keeper stopped while the app was suspended.
+  func resumeKeeper() {
+    guard isRunning else { return }
+    keeper.resume()
+  }
+
   func toggle() async {
     if isRunning {
       stop()
@@ -64,6 +77,7 @@ final class ProxyController {
     startedAt = .now
     lastSampledAt = .now
     isRunning = true
+    UserDefaults.standard.set(true, forKey: Self.wasRunningKey)
     let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
       MainActor.assumeIsolated { self?.refreshStats() }
     }
@@ -79,10 +93,12 @@ final class ProxyController {
     keeper.stop()
     startedAt = nil
     isRunning = false
+    UserDefaults.standard.set(false, forKey: Self.wasRunningKey)
   }
 
   private func refreshStats() {
     guard let server else { return }
+    keeper.resume()
     let previous = stats
     stats = server.currentStats()
     let now = ContinuousClock.now
