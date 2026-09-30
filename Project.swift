@@ -16,6 +16,9 @@ let version: [String: Plist.Value] = [
 
 let hardenedRuntime: SettingsDictionary = ["ENABLE_HARDENED_RUNTIME": "YES"]
 
+// Static frameworks are linked into the apps and never signed on their own.
+let unsigned: SettingsDictionary = ["CODE_SIGNING_ALLOWED": "NO"]
+
 let localNetworkUsage: [String: Plist.Value] = [
   "NSLocalNetworkUsageDescription": "Nothering accepts proxy connections from devices on your Personal Hotspot.",
 ]
@@ -30,7 +33,8 @@ let project = Project(
       product: .staticFramework,
       bundleId: "\(bundleIDPrefix).proxycore",
       deploymentTargets: .multiplatform(iOS: "18.0", macOS: "15.0"),
-      sources: ["ProxyCore/Sources/**"]
+      sources: ["ProxyCore/Sources/**"],
+      settings: .settings(base: unsigned)
     ),
     .target(
       name: "ProxyCoreTests",
@@ -64,7 +68,8 @@ let project = Project(
       product: .staticFramework,
       bundleId: "\(bundleIDPrefix).phonelink",
       deploymentTargets: .macOS("15.0"),
-      sources: ["PhoneLink/Sources/**"]
+      sources: ["PhoneLink/Sources/**"],
+      settings: .settings(base: unsigned)
     ),
     .target(
       name: "PhoneLinkTests",
