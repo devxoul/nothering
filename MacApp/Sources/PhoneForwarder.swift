@@ -23,7 +23,15 @@ final class PhoneForwarder {
     case hotspot = "Hotspot"
   }
 
+  /// When to turn capture on without the user flipping the switch.
+  enum AutoTurnOn: String, CaseIterable, Sendable {
+    case never = "Never"
+    case phoneConnects = "iPhone connects"
+    case proxyStarts = "iPhone proxy starts"
+  }
+
   private static let preferenceKey = "linkPreference"
+  private static let autoTurnOnKey = "autoTurnOn"
 
   static let port: UInt16 = 11080
 
@@ -42,6 +50,12 @@ final class PhoneForwarder {
       refreshLink()
     }
   }
+  var autoTurnOn = AutoTurnOn(rawValue: UserDefaults.standard.string(forKey: autoTurnOnKey) ?? "") ?? .never {
+    didSet { UserDefaults.standard.set(autoTurnOn.rawValue, forKey: Self.autoTurnOnKey) }
+  }
+  /// Called when the phone reaches the state `autoTurnOn` waits for. Fires only on the transition,
+  /// so turning capture off by hand sticks until the phone disconnects and comes back.
+  @ObservationIgnored var onAutoTurnOn: (() -> Void)?
   private var forwarder: LocalForwarder?
   private var monitor: Timer?
   private var statsTimer: Timer?
@@ -81,10 +95,22 @@ final class PhoneForwarder {
     Task.detached {
       let result = route.refresh()
       await MainActor.run {
+        let wasReady = self.isAutoTurnOnReady
         self.link = result.link
         self.detected = result.detected
         self.hint = result.hint
+        if !wasReady, self.isAutoTurnOnReady {
+          self.onAutoTurnOn?()
+        }
       }
+    }
+  }
+
+  private var isAutoTurnOnReady: Bool {
+    switch autoTurnOn {
+    case .never: false
+    case .phoneConnects: detected != .none || link != .none
+    case .proxyStarts: link != .none
     }
   }
 }

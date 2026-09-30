@@ -11,10 +11,13 @@ struct NotheringMenuBarApp: App {
 
   init() {
     Self.relaunchFromApplicationsIfNeeded()
+    let controller = ExtensionController()
     let forwarder = PhoneForwarder()
+    forwarder.onAutoTurnOn = { [weak controller] in
+      Task { await controller?.turnOnAutomatically() }
+    }
     forwarder.start()
     _forwarder = State(initialValue: forwarder)
-    let controller = ExtensionController()
     controller.installExtension()
     _controller = State(initialValue: controller)
     AppDelegate.controller = controller
@@ -57,6 +60,9 @@ struct NotheringMenuBarApp: App {
           ForEach(PhoneForwarder.Preference.allCases, id: \.self) { Text($0.rawValue) }
         }
         .pickerStyle(.segmented)
+        Picker("Turn on when", selection: $forwarder.autoTurnOn) {
+          ForEach(PhoneForwarder.AutoTurnOn.allCases, id: \.self) { Text($0.rawValue) }
+        }
         Divider()
         HStack {
           Toggle("Launch at Login", isOn: Binding(get: { launchesAtLogin }, set: setLaunchesAtLogin))

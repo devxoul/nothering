@@ -22,13 +22,14 @@ final class ExtensionController: NSObject {
     didSet { UserDefaults.standard.set(hasTurnedOn, forKey: Self.hasTurnedOnKey) }
   }
   private var manager: NETransparentProxyManager?
+  private var loading: Task<Void, Never>?
 
   override init() {
     super.init()
     NotificationCenter.default.addObserver(forName: .NEVPNStatusDidChange, object: nil, queue: .main) { [weak self] _ in
       MainActor.assumeIsolated { self?.refreshStatus() }
     }
-    Task { await load() }
+    loading = Task { await load() }
   }
 
   func installExtension() {
@@ -63,7 +64,17 @@ final class ExtensionController: NSObject {
     try await manager.saveToPreferences()
   }
 
+  /// Turns capture on for the auto turn-on option. Skipped until the user has turned it on by hand once,
+  /// since the first time macOS asks to allow the proxy configurations.
+  func turnOnAutomatically() async {
+    await loading?.value
+    guard hasTurnedOn, !isRunning else { return }
+    await turnOn()
+  }
+
   func turnOn() async {
+    // Waiting for the saved configuration keeps an early turn-on from saving a duplicate one.
+    await loading?.value
     do {
       let manager = try await configuredManager()
       try manager.connection.startVPNTunnel()
