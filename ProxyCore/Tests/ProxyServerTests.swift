@@ -42,6 +42,33 @@ private let loopback = NWEndpoint.Host.ipv4(.loopback)
     client.cancel()
   }
 
+  @Test func relaysFramedUDP() async throws {
+    let (echo, echoPort) = try await startEchoServer(using: .udp)
+    defer { echo.cancel() }
+    let (server, proxyPort) = try await startProxy()
+    defer { server.stop() }
+
+    let client = try await socksHandshake(proxyPort: proxyPort)
+    try await client.sendAsync(Data([0x05, DatagramFrame.command, 0x00, 0x01, 0, 0, 0, 0, 0, 0]))
+    #expect(try await client.receiveExactly(10)[1] == 0x00)
+
+    for message in ["one", "two"] {
+      let frame = try #require(DatagramFrame.encode(Data(message.utf8), host: loopback, port: echoPort))
+      try await client.sendAsync(frame)
+      let header = try await client.receiveExactly(2)
+      let body = try await client.receiveExactly(Int(header[0]) << 8 | Int(header[1]))
+      let reply = try #require(DatagramFrame.decode(body: body))
+      #expect(reply.host == loopback)
+      #expect(reply.port == echoPort)
+      #expect(reply.payload == Data(message.utf8))
+    }
+    client.cancel()
+
+    let stats = server.currentStats()
+    #expect(stats.bytesUp == 6)
+    #expect(stats.bytesDown == 6)
+  }
+
   @Test func rejectsUnsupportedCommand() async throws {
     let (server, proxyPort) = try await startProxy()
     defer { server.stop() }
@@ -143,8 +170,8 @@ private func socksHandshake(proxyPort: NWEndpoint.Port) async throws -> NWConnec
   return client
 }
 
-func startEchoServer() async throws -> (NWListener, NWEndpoint.Port) {
-  let listener = try NWListener(using: .tcp, on: .any)
+func startEchoServer(using parameters: NWParameters = .tcp) async throws -> (NWListener, NWEndpoint.Port) {
+  let listener = try NWListener(using: parameters, on: .any)
   let queue = DispatchQueue(label: "echo")
   listener.newConnectionHandler = { connection in
     connection.start(queue: queue)

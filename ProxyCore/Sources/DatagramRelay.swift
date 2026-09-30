@@ -1,0 +1,105 @@
+import Foundation
+import Network
+
+/// Serves a framed-UDP session (see `DatagramFrame`): each frame from the client goes out as a
+/// datagram from this device's own network stack, and replies come back framed with their peer.
+/// All state is confined to the server's queue.
+final class DatagramRelay {
+  private struct Peer: Hashable {
+    let host: NWEndpoint.Host
+    let port: NWEndpoint.Port
+  }
+
+  /// Bounds per-session sockets for apps that talk to many peers (e.g. WebRTC).
+  private static let maxPeers = 256
+
+  private let client: ByteStream
+  private unowned let server: ProxyServer
+  private let onClose: () -> Void
+  private var peers: [Peer: NWConnection] = [:]
+  private var closed = false
+
+  init(client: ByteStream, server: ProxyServer, onClose: @escaping () -> Void) {
+    self.client = client
+    self.server = server
+    self.onClose = onClose
+  }
+
+  func start() {
+    readFrame()
+  }
+
+  func close() {
+    guard !closed else { return }
+    closed = true
+    for connection in peers.values {
+      connection.stateUpdateHandler = nil
+      connection.cancel()
+    }
+    peers.removeAll()
+  }
+
+  private func readFrame() {
+    read(2) { [self] header in
+      read(Int(header[0]) << 8 | Int(header[1])) { [self] body in
+        guard let frame = DatagramFrame.decode(body: Data(body)) else { return onClose() }
+        server.record(bytes: frame.payload.count, upstream: true)
+        let peer = Peer(host: frame.host, port: frame.port)
+        let connection = peers[peer] ?? open(peer, via: peer.host)
+        connection.send(content: frame.payload, completion: .contentProcessed { _ in })
+        readFrame()
+      }
+    }
+  }
+
+  private func read(_ count: Int, _ completion: @escaping ([UInt8]) -> Void) {
+    client.read(minimum: count, maximum: count) { [self] data, _, _ in
+      guard !closed else { return }
+      guard let data, data.count == count else { return onClose() }
+      completion([UInt8](data))
+    }
+  }
+
+  private func open(_ peer: Peer, via host: NWEndpoint.Host) -> NWConnection {
+    if peers.count >= Self.maxPeers, let evicted = peers.keys.first {
+      peers.removeValue(forKey: evicted)?.cancel()
+    }
+    let parameters = NWParameters.udp
+    if let interfaceType = server.configuration.requiredInterfaceType {
+      parameters.requiredInterfaceType = interfaceType
+    }
+    let connection = NWConnection(host: host, port: peer.port, using: parameters)
+    peers[peer] = connection
+    connection.stateUpdateHandler = { [weak self, weak connection] state in
+      guard let self, let connection, peers[peer] === connection else { return }
+      switch state {
+      case let .waiting(error) where Session.isNoRoute(error) && host == peer.host:
+        // Same as TCP: IPv4 literals on an IPv6-only carrier go through NAT64.
+        guard let nat64 = Session.nat64Address(for: host) else { return }
+        connection.cancel()
+        _ = open(peer, via: .ipv6(nat64))
+      case .failed:
+        peers.removeValue(forKey: peer)
+        connection.cancel()
+      default:
+        break
+      }
+    }
+    connection.start(queue: server.queue)
+    receive(from: connection, peer: peer)
+    return connection
+  }
+
+  private func receive(from connection: NWConnection, peer: Peer) {
+    connection.receiveMessage { [weak self] data, _, _, error in
+      guard let self, !closed, peers[peer] === connection else { return }
+      if let data, !data.isEmpty, let frame = DatagramFrame.encode(data, host: peer.host, port: peer.port) {
+        server.record(bytes: data.count, upstream: false)
+        client.write(frame) { [weak self] error in
+          if error != nil { self?.onClose() }
+        }
+      }
+      if error == nil { receive(from: connection, peer: peer) }
+    }
+  }
+}

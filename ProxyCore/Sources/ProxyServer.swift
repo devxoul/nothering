@@ -3,7 +3,7 @@ import Foundation
 import Network
 import os
 
-/// A SOCKS5 (CONNECT-only, no-auth) server. Every accepted CONNECT is served by a brand-new
+/// A SOCKS5 (no-auth) server supporting CONNECT and framed UDP (`DatagramFrame`). Every accepted CONNECT is served by a brand-new
 /// outbound connection opened from this device's own network stack.
 public final class ProxyServer {
   public struct Configuration {
@@ -126,6 +126,7 @@ public final class ProxyServer {
 final class Session {
   private let client: ByteStream
   private var upstream: NWConnection?
+  private var datagramRelay: DatagramRelay?
   private unowned let server: ProxyServer
   private static let waitingTimeout: TimeInterval = 10
   private var replied = false
@@ -149,6 +150,7 @@ final class Session {
     upstream?.stateUpdateHandler = nil
     client.cancel()
     upstream?.cancel()
+    datagramRelay?.close()
     server.sessionDidClose(self)
   }
 
@@ -172,15 +174,19 @@ final class Session {
   private func readRequest() {
     read(4) { [self] header in
       guard header[0] == 0x05 else { return close() }
-      guard header[1] == 0x01 else { return reply(0x07) } // command not supported
+      let command = header[1]
+      guard command == 0x01 || command == DatagramFrame.command else { return reply(0x07) } // command not supported
+      let handle = { [self] (host: NWEndpoint.Host, portBytes: Data) in
+        command == 0x01 ? connect(host: host, portBytes: portBytes) : relayDatagrams()
+      }
       switch header[3] {
       case 0x01:
-        read(6) { [self] body in
-          connect(host: .ipv4(IPv4Address(body.prefix(4))!), portBytes: body.suffix(2))
+        read(6) { body in
+          handle(.ipv4(IPv4Address(body.prefix(4))!), body.suffix(2))
         }
       case 0x04:
-        read(18) { [self] body in
-          connect(host: .ipv6(IPv6Address(body.prefix(16))!), portBytes: body.suffix(2))
+        read(18) { body in
+          handle(.ipv6(IPv6Address(body.prefix(16))!), body.suffix(2))
         }
       case 0x03:
         read(1) { [self] length in
@@ -188,7 +194,7 @@ final class Session {
             guard let name = String(data: body.prefix(body.count - 2), encoding: .utf8) else {
               return reply(0x01)
             }
-            connect(host: NWEndpoint.Host(name), portBytes: body.suffix(2))
+            handle(NWEndpoint.Host(name), body.suffix(2))
           }
         }
       default:
@@ -240,7 +246,13 @@ final class Session {
     upstream.start(queue: server.queue)
   }
 
-  private static func isNoRoute(_ error: NWError) -> Bool {
+  /// Accepts a framed-UDP session; the request's address is unused.
+  private func relayDatagrams() {
+    datagramRelay = DatagramRelay(client: client, server: server) { [weak self] in self?.close() }
+    reply(0x00)
+  }
+
+  static func isNoRoute(_ error: NWError) -> Bool {
     error == .posix(.ENETDOWN) || error == .posix(.ENETUNREACH)
   }
 
@@ -256,7 +268,9 @@ final class Session {
     replied = true
     let message = Data([0x05, code, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
     client.write(message) { [self] error in
-      guard code == 0x00, error == nil, let upstream else { return close() }
+      guard code == 0x00, error == nil else { return close() }
+      if let datagramRelay { return datagramRelay.start() }
+      guard let upstream else { return close() }
       pump(from: client, to: upstream, isUpstream: true)
       pump(from: upstream, to: client, isUpstream: false)
     }
