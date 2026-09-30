@@ -17,6 +17,11 @@ import Testing
     try await client.startAndWaitReady()
     try await client.sendAsync(Data("through the phone".utf8))
     #expect(try await client.receiveExactly(17) == Data("through the phone".utf8))
+
+    let stats = forwarder.currentStats()
+    #expect(stats.activeConnections == 1)
+    #expect(stats.bytesUp == 17)
+    #expect(stats.bytesDown == 17)
     client.cancel()
   }
 

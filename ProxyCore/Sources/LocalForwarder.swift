@@ -5,12 +5,21 @@ import os
 /// Accepts loopback connections and relays each one to a stream opened by `connectUpstream`
 /// (e.g. usbmux or a TCP connection to the phone over the hotspot).
 public final class LocalForwarder {
+  public struct Stats: Equatable, Sendable {
+    public var activeConnections = 0
+    public var bytesUp: UInt64 = 0
+    public var bytesDown: UInt64 = 0
+
+    public init() {}
+  }
+
   private let port: UInt16
   private let connectUpstream: () throws -> Int32
   private let queue = DispatchQueue(label: "app.nothering.forwarder")
   private let logger = Logger(subsystem: "app.nothering", category: "forwarder")
   private var listener: SocketListener?
   private var relays: [ObjectIdentifier: Relay] = [:]
+  private var stats = Stats()
 
   /// `connectUpstream` runs off the forwarder queue and returns a connected socket.
   public init(port: UInt16, connectUpstream: @escaping () throws -> Int32) {
@@ -40,6 +49,10 @@ public final class LocalForwarder {
     }
   }
 
+  public func currentStats() -> Stats {
+    queue.sync { stats }
+  }
+
   private func forward(_ client: Int32) {
     DispatchQueue.global().async { [self] in
       let upstream: Int32
@@ -51,10 +64,20 @@ public final class LocalForwarder {
         return
       }
       queue.async { [self] in
-        let relay = Relay(SocketStream(fd: client, queue: queue), SocketStream(fd: upstream, queue: queue))
+        let relay = Relay(SocketStream(fd: client, queue: queue), SocketStream(fd: upstream, queue: queue)) { [weak self] count, isUp in
+          if isUp {
+            self?.stats.bytesUp += UInt64(count)
+          } else {
+            self?.stats.bytesDown += UInt64(count)
+          }
+        }
         let id = ObjectIdentifier(relay)
         relays[id] = relay
-        relay.start { [weak self] in self?.relays.removeValue(forKey: id) }
+        stats.activeConnections += 1
+        relay.start { [weak self] in
+          guard let self, relays.removeValue(forKey: id) != nil else { return }
+          stats.activeConnections -= 1
+        }
       }
     }
   }
@@ -64,13 +87,16 @@ public final class LocalForwarder {
 final class Relay {
   private let first: ByteStream
   private let second: ByteStream
+  /// Called with each chunk's size; `true` when it flowed from `first` to `second`.
+  private let onBytes: (Int, Bool) -> Void
   private var finishedDirections = 0
   private var isClosed = false
   private var onClose: (() -> Void)?
 
-  init(_ first: ByteStream, _ second: ByteStream) {
+  init(_ first: ByteStream, _ second: ByteStream, onBytes: @escaping (Int, Bool) -> Void = { _, _ in }) {
     self.first = first
     self.second = second
+    self.onBytes = onBytes
   }
 
   func start(onClose: @escaping () -> Void) {
@@ -92,6 +118,7 @@ final class Relay {
     source.read(minimum: 1, maximum: 64 * 1024) { [self] data, isComplete, error in
       guard !isClosed else { return }
       if let data, !data.isEmpty {
+        onBytes(data.count, source === first)
         destination.write(data) { [self] writeError in
           guard writeError == nil else { return close() }
           isComplete ? finish(destination) : pump(from: source, to: destination)
