@@ -13,7 +13,7 @@ public enum USBMux {
         return id
       }
     }
-    throw LinkError("no iPhone connected over USB")
+    throw LinkError("no iPhone connected over USB", kind: .noUSBDevice)
   }
 
   /// Returns a socket connected to `port` on the device; after the handshake it is a plain byte stream.
@@ -50,7 +50,7 @@ public enum USBMux {
     }
     guard result == 0 else {
       Darwin.close(fd)
-      throw LinkError("cannot reach usbmuxd: \(String(cString: strerror(errno)))")
+      throw LinkError("cannot reach usbmuxd: \(String(cString: strerror(errno)))", kind: .usbmuxdUnavailable)
     }
     return fd
   }

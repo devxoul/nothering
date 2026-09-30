@@ -10,14 +10,14 @@ import ProxyCore
 @MainActor
 @Observable
 final class PhoneForwarder {
-  enum Link: String {
+  enum Link: String, Sendable {
     case usb = "USB"
     case hotspot = "Hotspot"
     case none = "Not connected"
   }
 
   /// Which link to use; `auto` prefers USB and falls back to the hotspot.
-  enum Preference: String, CaseIterable {
+  enum Preference: String, CaseIterable, Sendable {
     case auto = "Auto"
     case usb = "USB"
     case hotspot = "Hotspot"
@@ -27,7 +27,12 @@ final class PhoneForwarder {
 
   static let port: UInt16 = 11080
 
+  /// The link whose Nothering proxy answers; `.none` until the phone's proxy is reachable.
   private(set) var link = Link.none
+  /// How the iPhone itself is attached, whether or not its proxy is running.
+  private(set) var detected = Link.none
+  /// The next thing the user should do when the proxy isn't reachable, e.g. "Tap Start Proxy on your iPhone".
+  private(set) var hint: String?
   private(set) var error: String?
   private(set) var stats = LocalForwarder.Stats()
   var preference = Preference(rawValue: UserDefaults.standard.string(forKey: preferenceKey) ?? "") ?? .auto {
@@ -74,8 +79,12 @@ final class PhoneForwarder {
   private func refreshLink() {
     let route = route
     Task.detached {
-      let link = route.refresh()
-      await MainActor.run { self.link = link }
+      let result = route.refresh()
+      await MainActor.run {
+        self.link = result.link
+        self.detected = result.detected
+        self.hint = result.hint
+      }
     }
   }
 }
@@ -83,6 +92,12 @@ final class PhoneForwarder {
 /// The current way to reach the phone, cached so each forwarded connection doesn't re-detect it
 /// (running `route` per connection is too slow when a browser opens hundreds at once).
 final class PhoneRoute: @unchecked Sendable {
+  struct RefreshResult: Sendable {
+    let link: PhoneForwarder.Link
+    let detected: PhoneForwarder.Link
+    let hint: String?
+  }
+
   private static let phonePort: UInt16 = 11080
   private let lock = NSLock()
   private var usbDeviceID: Int?
@@ -95,20 +110,54 @@ final class PhoneRoute: @unchecked Sendable {
   }
 
   @discardableResult
-  func refresh() -> PhoneForwarder.Link {
+  func refresh() -> RefreshResult {
     let preference = preference
-    let deviceID = preference == .hotspot ? nil : try? USBMux.firstUSBDeviceID()
-    var gateway: String?
-    if deviceID == nil, preference != .usb, let address = try? Hotspot.gatewayAddress(),
-       let fd = try? TCP.connect(host: address, port: Self.phonePort, timeout: 3) {
-      close(fd)
-      gateway = address
-    }
+    let (usb, deviceID) = preference == .hotspot ? (.notFound, nil) : probeUSB()
+    let shouldProbeHotspot = preference != .usb && !usb.answers
+    let (hotspot, gateway) = shouldProbeHotspot ? probeHotspot() : (.notFound, nil)
+    let diagnosis = PhoneLinkDiagnosis.evaluate(
+      preference: preference.diagnosisPreference,
+      usb: usb,
+      hotspot: hotspot
+    )
+    let link = diagnosis.link.forwarderLink
+    let detected = diagnosis.detected.forwarderLink
     lock.withLock {
-      usbDeviceID = deviceID
-      hotspotGateway = gateway
+      usbDeviceID = link == .usb ? deviceID : nil
+      hotspotGateway = link == .hotspot ? gateway : nil
     }
-    return deviceID != nil ? .usb : gateway != nil ? .hotspot : .none
+    return RefreshResult(link: link, detected: detected, hint: diagnosis.hint)
+  }
+
+  private func probeUSB() -> (PhoneLinkDiagnosis.USBState, Int?) {
+    do {
+      let deviceID = try USBMux.firstUSBDeviceID()
+      do {
+        close(try USBMux.connect(deviceID: deviceID, port: Self.phonePort))
+        return (.found(proxyAnswers: true), deviceID)
+      } catch {
+        return (.found(proxyAnswers: false), deviceID)
+      }
+    } catch let error as LinkError where error.kind == .noUSBDevice {
+      return (.notFound, nil)
+    } catch {
+      return (.unavailable, nil)
+    }
+  }
+
+  private func probeHotspot() -> (PhoneLinkDiagnosis.HotspotState, String?) {
+    do {
+      let gateway = try Hotspot.gatewayAddress()
+      var proxyAnswers = false
+      if let fd = try? TCP.connect(host: gateway, port: Self.phonePort, timeout: 1) {
+        close(fd)
+        proxyAnswers = true
+      }
+      let state = PhoneLinkDiagnosis.hotspot(proxyAnswers: proxyAnswers, isIPhoneHotspot: Hotspot.isIPhoneHotspot())
+      return (state, gateway)
+    } catch {
+      return (.notFound, nil)
+    }
   }
 
   func connect() throws -> Int32 {
@@ -129,5 +178,31 @@ final class PhoneRoute: @unchecked Sendable {
       return try TCP.connect(host: gateway, port: Self.phonePort, timeout: 3)
     }
     throw LinkError("iPhone not connected")
+  }
+}
+
+private extension PhoneForwarder.Preference {
+  var diagnosisPreference: PhoneLinkDiagnosis.Preference {
+    switch self {
+    case .auto: .auto
+    case .usb: .usb
+    case .hotspot: .hotspot
+    }
+  }
+}
+
+private extension PhoneLinkDiagnosis.Transport {
+  var forwarderLink: PhoneForwarder.Link {
+    switch self {
+    case .none: .none
+    case .usb: .usb
+    case .hotspot: .hotspot
+    }
+  }
+}
+
+private extension PhoneLinkDiagnosis.USBState {
+  var answers: Bool {
+    if case .found(proxyAnswers: true) = self { true } else { false }
   }
 }
