@@ -27,15 +27,8 @@ On the Mac, a **transparent proxy system extension** captures app traffic (TCP, 
 
 ```mermaid
 flowchart LR
-  subgraph Mac
-    A[Apps] -->|TCP / UDP| E[Proxy system extension]
-    D[DNS lookups] --> E
-    E -->|SOCKS5 · 127.0.0.1:11080| F[Menu bar app<br/>forwarder]
-  end
-  F -->|USB usbmux<br/>or Hotspot TCP| P
-  subgraph iPhone
-    P[Nothering app<br/>SOCKS5 :11080] -->|new connection,<br/>cellular only| I((Internet))
-  end
+  M["💻 Mac"] -->|USB or Hotspot| P["📱 iPhone"]
+  P -->|looks like the phone| I(("🌐 Internet"))
 ```
 
 | Piece | Role |
