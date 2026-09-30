@@ -1,3 +1,4 @@
+import ProxyCore
 import SwiftUI
 
 @main
@@ -20,6 +21,7 @@ struct NotheringMenuBarApp: App {
     MenuBarExtra("Nothering", systemImage: controller.isRunning ? "iphone.radiowaves.left.and.right" : "iphone") {
       Text(controller.status)
       Text("iPhone: \(forwarder.link.rawValue)")
+      Text(Self.describe(forwarder.stats))
       if let error = forwarder.error {
         Text(error)
       }
@@ -31,6 +33,12 @@ struct NotheringMenuBarApp: App {
       Divider()
       Button("Quit Nothering") { NSApplication.shared.terminate(nil) }
     }
+  }
+
+  private static func describe(_ stats: LocalForwarder.Stats) -> String {
+    let up = ByteCountFormatter.string(fromByteCount: Int64(stats.bytesUp), countStyle: .file)
+    let down = ByteCountFormatter.string(fromByteCount: Int64(stats.bytesDown), countStyle: .file)
+    return "↑ \(up)  ↓ \(down)  ·  \(stats.activeConnections) connections"
   }
 }
 

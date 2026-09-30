@@ -20,8 +20,10 @@ final class PhoneForwarder {
 
   private(set) var link = Link.none
   private(set) var error: String?
+  private(set) var stats = LocalForwarder.Stats()
   private var forwarder: LocalForwarder?
   private var monitor: Timer?
+  private var statsTimer: Timer?
   private let route = PhoneRoute()
   private let pathMonitor = NWPathMonitor()
 
@@ -37,6 +39,12 @@ final class PhoneForwarder {
     refreshLink()
     monitor = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
       MainActor.assumeIsolated { self?.refreshLink() }
+    }
+    statsTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+      MainActor.assumeIsolated {
+        guard let self, let forwarder = self.forwarder else { return }
+        self.stats = forwarder.currentStats()
+      }
     }
     pathMonitor.pathUpdateHandler = { [weak self] _ in
       Task { @MainActor in self?.refreshLink() }
