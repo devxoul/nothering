@@ -88,11 +88,14 @@ Releases go through [fastlane](https://fastlane.tools) with [match](https://docs
 
 ```sh
 bundle install
+bundle exec fastlane release      # both below, sharing one build number
 bundle exec fastlane ios beta     # iPhone app → TestFlight (build number = latest + 1)
-bundle exec fastlane mac release  # menu bar app → Developer ID, notarized zip in build/fastlane/
+bundle exec fastlane mac release  # Mac app + CLI → Developer ID, notarized zips in build/fastlane/
 ```
 
-Both lanes accept `build_number:<n>`. Set `MATCH_READONLY=true` to stop match from creating new certificates or profiles.
+`ios beta` and `mac release` accept `build_number:<n>`. Set `MATCH_READONLY=true` to stop match from creating new certificates or profiles.
+
+Published releases go through the **Release** GitHub Actions workflow (`gh workflow run release.yml -f version=X.Y.Z`): it uploads the iPhone app to TestFlight and attaches the notarized Mac app and CLI to a GitHub Release. See [`AGENTS.md`](AGENTS.md#release) for the full process.
 
 ### Use
 
