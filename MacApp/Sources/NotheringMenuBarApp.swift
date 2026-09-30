@@ -22,24 +22,43 @@ struct NotheringMenuBarApp: App {
 
   var body: some Scene {
     MenuBarExtra("Nothering", image: controller.isRunning ? "MenuBarIcon" : "MenuBarIconOff") {
-      Text(controller.status)
-      Text("iPhone: \(forwarder.link.rawValue)")
-      Text(Self.describe(forwarder.stats))
-      if let error = forwarder.error {
-        Text(error)
+      VStack(alignment: .leading, spacing: 10) {
+        HStack {
+          VStack(alignment: .leading, spacing: 2) {
+            Text("Nothering").font(.headline)
+            Text(controller.status).font(.subheadline).foregroundStyle(.secondary).lineLimit(3)
+          }
+          Spacer()
+          Toggle("Nothering", isOn: Binding(get: { controller.isRunning }, set: { _ in Task { await controller.toggle() } }))
+            .toggleStyle(.switch)
+            .labelsHidden()
+        }
+        Divider()
+        VStack(alignment: .leading, spacing: 4) {
+          Text("iPhone: \(forwarder.link.rawValue)")
+          Text(Self.describe(forwarder.stats))
+          if let error = forwarder.error {
+            Text(error).foregroundStyle(.red)
+          }
+        }
+        .font(.callout)
+        .foregroundStyle(.secondary)
+        Picker("Link", selection: $forwarder.preference) {
+          ForEach(PhoneForwarder.Preference.allCases, id: \.self) { Text($0.rawValue) }
+        }
+        .pickerStyle(.segmented)
+        Divider()
+        Toggle("Launch at Login", isOn: Binding(get: { launchesAtLogin }, set: setLaunchesAtLogin))
+        HStack {
+          Button("Install Extension") { controller.installExtension() }
+          Spacer()
+          Button("Quit Nothering") { NSApplication.shared.terminate(nil) }
+        }
       }
-      Picker("Link", selection: $forwarder.preference) {
-        ForEach(PhoneForwarder.Preference.allCases, id: \.self) { Text($0.rawValue) }
-      }
-      Divider()
-      Button("Install Extension") { controller.installExtension() }
-      Button(controller.isRunning ? "Turn Off" : "Turn On") {
-        Task { await controller.toggle() }
-      }
-      Toggle("Launch at Login", isOn: Binding(get: { launchesAtLogin }, set: setLaunchesAtLogin))
-      Divider()
-      Button("Quit Nothering") { NSApplication.shared.terminate(nil) }
+      .padding(14)
+      .frame(width: 300)
     }
+    .menuBarExtraStyle(.window)
   }
 
   private func setLaunchesAtLogin(_ enabled: Bool) {
