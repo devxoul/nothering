@@ -53,14 +53,17 @@ final class TransparentProxyProvider: NETransparentProxyProvider {
   override func handleNewFlow(_ flow: NEAppProxyFlow) -> Bool {
     // Returning false lets macOS connect the flow directly, so the Mac keeps working without the phone.
     guard reachability.isReachable else { return false }
-    // Other network extensions (e.g. Tailscale) manage their own connectivity; tunnelling their
-    // control traffic through the phone breaks them, and MagicDNS with them.
-    guard !Self.isNetworkExtension(flow.metaData.sourceAppSigningIdentifier) else { return false }
+    // Other network extensions (VPNs) manage their own connectivity and are left alone. Tailscale's
+    // TCP (control plane and DERP relays) is the exception: when the carrier blocks its direct
+    // WireGuard UDP, DERP over the phone is what keeps the tailnet, and MagicDNS, working.
+    let source = flow.metaData.sourceAppSigningIdentifier
     if let flow = flow as? NEAppProxyUDPFlow {
+      guard !Self.isNetworkExtension(source) else { return false }
       relayDatagrams(flow)
       return true
     }
     guard let flow = flow as? NEAppProxyTCPFlow else { return false }
+    guard !Self.isNetworkExtension(source) || Self.isTailscale(source) else { return false }
     guard case let .hostPort(endpointHost, endpointPort) = flow.remoteFlowEndpoint else { return false }
     let host = flow.remoteHostname ?? endpointHost.addressString
     let port = endpointPort.rawValue
@@ -128,5 +131,10 @@ final class TransparentProxyProvider: NETransparentProxyProvider {
     let identifier = signingIdentifier.lowercased()
     return identifier.contains("network-extension") || identifier.contains("networkextension")
       || identifier.hasSuffix(".systemextension")
+  }
+
+  /// Tailscale's network extension, standalone (`io.tailscale.ipn.macsys…`) or App Store build.
+  static func isTailscale(_ signingIdentifier: String) -> Bool {
+    signingIdentifier.lowercased().hasPrefix("io.tailscale.ipn.")
   }
 }
