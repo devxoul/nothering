@@ -2,11 +2,10 @@
   <img src="Shared/AppIcon.icon/Assets/nothering.png" width="160" alt="Nothering icon">
 </p>
 
-<h1 align="center">Nothering</h1>
+<h1 align="center">Nothering – is not tethering</h1>
 
 <p align="center">
-  <strong>Nothering is not tethering.</strong><br>
-  Use your iPhone's cellular connection from your Mac — without it looking like tethering.
+  Use your iPhone's cellular connection from your Mac without it looking like tethering.
 </p>
 
 <p align="center">
