@@ -77,6 +77,23 @@ Set your own `teamID` (and optionally `bundleIDPrefix`) in [`Project.swift`](Pro
 | `NotheringMac` | `nothering` CLI |
 | `ProxyCore`, `PhoneLink` | Libraries + unit tests (`tuist test ProxyCore`) |
 
+### Release
+
+Releases go through [fastlane](https://fastlane.tools) with [match](https://docs.fastlane.tools/actions/match/) handling signing. Set these in the environment or in `fastlane/.env`:
+
+| Variable | Purpose |
+|---|---|
+| `MATCH_GIT_URL`, `MATCH_PASSWORD` | Private certificates repo and its passphrase |
+| `APP_STORE_CONNECT_API_KEY_KEY_ID`, `APP_STORE_CONNECT_API_KEY_ISSUER_ID`, `APP_STORE_CONNECT_API_KEY_KEY_FILEPATH` | App Store Connect API key (`.p8`) |
+
+```sh
+bundle install
+bundle exec fastlane ios beta     # iPhone app → TestFlight (build number = latest + 1)
+bundle exec fastlane mac release  # menu bar app → Developer ID, notarized zip in build/fastlane/
+```
+
+Both lanes accept `build_number:<n>`. Set `MATCH_READONLY=true` to stop match from creating new certificates or profiles.
+
 ### Use
 
 1. **iPhone** — open Nothering and tap **Start Proxy**.
