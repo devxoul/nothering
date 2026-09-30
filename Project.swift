@@ -52,6 +52,7 @@ let project = Project(
         "CFBundleDisplayName": "Nothering",
         "UILaunchScreen": [:],
         "UIBackgroundModes": ["audio"],
+        "ITSAppUsesNonExemptEncryption": false,
       ]) { $1 }),
       sources: ["iOS/App/**"],
       resources: ["Shared/AppIcon.icon", "iOS/Resources/**"],
