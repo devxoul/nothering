@@ -68,6 +68,7 @@ struct ContentView: View {
 
 private struct StatusCard: View {
   let controller: ProxyController
+  @State private var confirmingStop = false
   @Environment(\.colorScheme) private var colorScheme
 
   private static let accent = Color(red: 0.25, green: 0.85, blue: 0.85)
@@ -113,22 +114,35 @@ private struct StatusCard: View {
         .accessibilityHidden(!controller.isRunning)
 
       Button {
-        Task { await controller.toggle() }
+        if controller.isRunning, !confirmingStop {
+          confirmingStop = true
+        } else {
+          confirmingStop = false
+          Task { await controller.toggle() }
+        }
       } label: {
         HStack(spacing: 8) {
           Image(systemName: controller.isRunning ? "stop.fill" : "power")
-          Text(controller.isRunning ? "Stop Proxy" : "Start Proxy")
+          Text(controller.isRunning ? (confirmingStop ? "Tap Again to Stop" : "Stop Proxy") : "Start Proxy")
+            .contentTransition(.interpolate)
         }
         .font(.body.weight(.semibold))
-        .foregroundStyle(.primary)
+        .foregroundStyle(confirmingStop ? Color.white : Color.primary)
         .frame(maxWidth: 220)
         .padding(.vertical, 14)
         .background(
-          (controller.isRunning ? Color.red : Self.chainBlue).opacity(colorScheme == .dark ? 0.25 : 0.18),
+          confirmingStop
+            ? Color.red
+            : (controller.isRunning ? Color.red : Self.chainBlue).opacity(colorScheme == .dark ? 0.25 : 0.18),
           in: .capsule
         )
       }
       .buttonStyle(PressableStyle())
+      .animation(.snappy, value: confirmingStop)
+      .task(id: confirmingStop) {
+        guard confirmingStop, (try? await Task.sleep(for: .seconds(3))) != nil else { return }
+        confirmingStop = false
+      }
     }
     .sensoryFeedback(.impact(weight: .medium), trigger: controller.isRunning)
     .frame(maxWidth: .infinity)
