@@ -33,6 +33,11 @@ struct NotheringMenuBarApp: App {
             .toggleStyle(.switch)
             .labelsHidden()
         }
+        if !controller.hasTurnedOn {
+          Text("macOS will ask twice to add proxies — allow both")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
         let setup = SetupChecklist(controller: controller, forwarder: forwarder)
         if !setup.isComplete {
           Divider()
