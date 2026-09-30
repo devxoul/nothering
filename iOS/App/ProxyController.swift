@@ -12,8 +12,21 @@ final class ProxyController {
   private(set) var isRunning = false
   private(set) var stats = ProxyServer.Stats()
   private(set) var lastError: String?
+  private(set) var startedAt: Date?
+  /// Per-second throughput for the last `sampleWindow` seconds, oldest first.
+  private(set) var samples: [ThroughputSample] = []
+
+  struct ThroughputSample: Identifiable {
+    let id: Int
+    let up: Double
+    let down: Double
+  }
+
+  static let sampleWindow = 60
 
   private var server: ProxyServer?
+  private var sampleIndex = 0
+  private var lastSampledAt = ContinuousClock.now
   private let keeper = BackgroundKeeper()
   private var statsTimer: Timer?
 
@@ -38,10 +51,16 @@ final class ProxyController {
       return
     }
     self.server = server
+    stats = ProxyServer.Stats()
+    samples = []
+    startedAt = .now
+    lastSampledAt = .now
     isRunning = true
-    statsTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+    let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
       MainActor.assumeIsolated { self?.refreshStats() }
     }
+    RunLoop.main.add(timer, forMode: .common)
+    statsTimer = timer
   }
 
   func stop() {
@@ -50,12 +69,25 @@ final class ProxyController {
     server?.stop()
     server = nil
     keeper.stop()
+    startedAt = nil
     isRunning = false
   }
 
   private func refreshStats() {
-    if let server {
-      stats = server.currentStats()
+    guard let server else { return }
+    let previous = stats
+    stats = server.currentStats()
+    let now = ContinuousClock.now
+    let elapsed = max((now - lastSampledAt) / .seconds(1), 0.001)
+    lastSampledAt = now
+    samples.append(ThroughputSample(
+      id: sampleIndex,
+      up: Double(stats.bytesUp &- previous.bytesUp) / elapsed,
+      down: Double(stats.bytesDown &- previous.bytesDown) / elapsed
+    ))
+    sampleIndex += 1
+    if samples.count > Self.sampleWindow {
+      samples.removeFirst(samples.count - Self.sampleWindow)
     }
   }
 }
