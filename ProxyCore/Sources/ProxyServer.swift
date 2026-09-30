@@ -29,8 +29,30 @@ public final class ProxyServer {
     public var totalConnections = 0
     public var bytesUp: UInt64 = 0
     public var bytesDown: UInt64 = 0
+    /// The connection counts above, split by `Link`.
+    public var activeUSBConnections = 0
+    public var totalUSBConnections = 0
+    public var activeHotspotConnections = 0
+    public var totalHotspotConnections = 0
 
     public init() {}
+  }
+
+  /// The link a client came over: usbmux delivers USB connections on loopback, and Personal
+  /// Hotspot clients arrive on a `bridge*` interface.
+  public enum Link: Sendable {
+    case usb
+    case hotspot
+
+    public init?(interface: String) {
+      if interface == "lo0" {
+        self = .usb
+      } else if interface.hasPrefix("bridge") {
+        self = .hotspot
+      } else {
+        return nil
+      }
+    }
   }
 
   public struct StartError: LocalizedError {
@@ -45,7 +67,7 @@ public final class ProxyServer {
   let queue = DispatchQueue(label: "app.nothering.proxy")
   let logger = Logger(subsystem: "app.nothering", category: "proxy")
   private var listener: SocketListener?
-  private var sessions: [ObjectIdentifier: Session] = [:]
+  private var sessions: [ObjectIdentifier: (session: Session, link: Link?)] = [:]
   private var stats = Stats()
 
   public init(configuration: Configuration = Configuration()) {
@@ -71,8 +93,8 @@ public final class ProxyServer {
     queue.sync {
       listener?.cancel()
       listener = nil
-      for session in sessions.values {
-        session.close()
+      for entry in sessions.values {
+        entry.session.close()
       }
       sessions.removeAll()
     }
@@ -90,17 +112,35 @@ public final class ProxyServer {
     }
     logger.info("accepted client on interface \(interface, privacy: .public)")
     let session = Session(client: SocketStream(fd: fd, queue: queue), server: self)
-    sessions[ObjectIdentifier(session)] = session
+    let link = Link(interface: interface)
+    sessions[ObjectIdentifier(session)] = (session, link)
     stats.activeConnections += 1
     stats.totalConnections += 1
+    switch link {
+    case .usb:
+      stats.activeUSBConnections += 1
+      stats.totalUSBConnections += 1
+    case .hotspot:
+      stats.activeHotspotConnections += 1
+      stats.totalHotspotConnections += 1
+    case nil:
+      break
+    }
     session.start()
   }
 
   // MARK: Session callbacks (always on `queue`)
 
   func sessionDidClose(_ session: Session) {
-    if sessions.removeValue(forKey: ObjectIdentifier(session)) != nil {
-      stats.activeConnections -= 1
+    guard let entry = sessions.removeValue(forKey: ObjectIdentifier(session)) else { return }
+    stats.activeConnections -= 1
+    switch entry.link {
+    case .usb:
+      stats.activeUSBConnections -= 1
+    case .hotspot:
+      stats.activeHotspotConnections -= 1
+    case nil:
+      break
     }
   }
 
