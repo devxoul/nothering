@@ -6,6 +6,7 @@ struct SetupChecklist: View {
   var isExtensionInstalled: Bool
   var needsApproval: Bool
   var isPhoneConnected: Bool
+  var connectionMethod: String?
   var isProxyRunning: Bool
   var proxyHint: String?
   var installExtension: () -> Void
@@ -16,7 +17,7 @@ struct SetupChecklist: View {
     VStack(alignment: .leading, spacing: 8) {
       extensionStep
       Step(
-        title: "iPhone connected",
+        title: connectionMethod.map { "iPhone connected (\($0))" } ?? "iPhone connected",
         status: isPhoneConnected ? .done : .pending,
         explanation: proxyHint ?? "Connect by USB or join its Personal Hotspot"
       )
@@ -55,6 +56,7 @@ extension SetupChecklist {
       isExtensionInstalled: controller.isExtensionInstalled,
       needsApproval: controller.needsApproval,
       isPhoneConnected: forwarder.detected != .none || forwarder.link != .none,
+      connectionMethod: [forwarder.link, forwarder.detected].first { $0 != .none }?.rawValue,
       isProxyRunning: forwarder.link != .none,
       proxyHint: forwarder.hint,
       installExtension: controller.installExtension
