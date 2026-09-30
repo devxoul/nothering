@@ -9,11 +9,8 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/iOS-18%2B-000?logo=apple" alt="iOS 18+">
-  <img src="https://img.shields.io/badge/macOS-15%2B-000?logo=apple" alt="macOS 15+">
-  <img src="https://img.shields.io/badge/Swift-5-F05138?logo=swift&logoColor=white" alt="Swift 5">
-  <img src="https://img.shields.io/badge/built%20with-Tuist-6236FF" alt="Tuist">
-  <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License">
+  <a href="https://testflight.apple.com/join/GYV2fdtp"><img src="https://img.shields.io/badge/iOS-TestFlight-0D96F6?logo=apple&logoColor=white&labelColor=000" alt="iOS TestFlight"></a>
+  <a href="https://github.com/devxoul/nothering/releases/latest"><img src="https://img.shields.io/badge/macOS-Download-2EA44F?logo=apple&logoColor=white&labelColor=000" alt="macOS download"></a>
 </p>
 
 ---
@@ -48,6 +45,11 @@ Nothering fails open — your Mac keeps working when the phone isn't around.
 - 🛡️ **Other VPNs / network extensions** are left alone — except Tailscale's TCP (control plane + DERP), so your tailnet keeps working when the carrier blocks WireGuard UDP. Tailnet DNS names resolve normally.
 
 ## Getting started
+
+### Install
+
+- **iPhone** — join the [TestFlight beta](https://testflight.apple.com/join/GYV2fdtp).
+- **Mac** — download the app and CLI from [GitHub Releases](../../releases).
 
 ### Requirements
 
