@@ -1,0 +1,1 @@
+First TestFlight build. Start the proxy, connect your Mac by USB or Personal Hotspot, and check that traffic flows through the phone.

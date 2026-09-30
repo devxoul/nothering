@@ -2,11 +2,69 @@ ROOT = File.expand_path("..", __dir__)
 TEAM_ID = "N2C267LBVY"
 WORKSPACE = "Nothering.xcworkspace"
 PROJECT = "Nothering.xcodeproj"
-OUTPUT_DIR = "build/fastlane"
+OUTPUT_DIR = File.join(ROOT, "build/fastlane")
+RELEASE_NOTES = File.join(__dir__, "release_notes.txt")
 
 IOS_APP_ID = "app.nothering.ios"
 MAC_APP_ID = "app.nothering.mac"
 MAC_EXTENSION_ID = "app.nothering.mac.proxy"
+
+VERSION_PATTERN = /("CFBundleShortVersionString": ")([^"]+)(")/
+
+before_all do
+  # Temporary keychain + readonly match on CI runners.
+  setup_ci if is_ci
+end
+
+desc "Set the marketing version in Project.swift and commit it"
+lane :bump do |options|
+  version = options[:version].to_s
+  UI.user_error!("Usage: fastlane bump version:X.Y.Z") unless version.match?(/\A\d+\.\d+\.\d+\z/)
+
+  path = File.join(ROOT, "Project.swift")
+  content = File.read(path)
+  UI.user_error!("Couldn't find CFBundleShortVersionString in Project.swift") unless content.match?(VERSION_PATTERN)
+  if current_version == version
+    UI.important("Project.swift is already at #{version}, nothing to commit")
+    next
+  end
+
+  File.write(path, content.sub(VERSION_PATTERN, "\\1#{version}\\3"))
+  git_commit(path: path, message: "Bump version to #{version}")
+end
+
+desc "Release both apps: notarized Mac app + CLI in build/fastlane/, iPhone app to TestFlight"
+lane :release do
+  api_key = app_store_connect_api_key
+  build_number = next_build_number(api_key)
+  # Mac first: it has no public side effect, so most failures happen before the TestFlight upload.
+  build_mac(api_key, build_number)
+  build_ios(api_key, build_number)
+end
+
+platform :ios do
+  desc "Build the iPhone app and upload it to TestFlight"
+  lane :beta do |options|
+    api_key = app_store_connect_api_key
+    build_ios(api_key, options[:build_number] || next_build_number(api_key))
+  end
+end
+
+platform :mac do
+  desc "Build the menu bar app and CLI with Developer ID, notarize them, and zip them"
+  lane :release do |options|
+    build_mac(app_store_connect_api_key, options[:build_number])
+  end
+end
+
+def current_version
+  File.read(File.join(ROOT, "Project.swift"))[VERSION_PATTERN, 2]
+end
+
+# Both apps share one build number, taken from TestFlight so it always increases.
+def next_build_number(api_key)
+  latest_testflight_build_number(api_key: api_key, app_identifier: IOS_APP_ID, initial_build_number: 0) + 1
+end
 
 def generate_project(build_number)
   ENV["TUIST_BUILD_NUMBER"] = build_number.to_s if build_number
@@ -25,72 +83,94 @@ def developer_id_entitlements(path)
   output
 end
 
-platform :ios do
-  desc "Build the iPhone app and upload it to TestFlight"
-  lane :beta do |options|
-    api_key = app_store_connect_api_key
-    build_number = options[:build_number] ||
-      latest_testflight_build_number(api_key: api_key, app_identifier: IOS_APP_ID, initial_build_number: 0) + 1
-    generate_project(build_number)
+def build_ios(api_key, build_number)
+  generate_project(build_number)
 
-    match(type: "appstore", platform: "ios", app_identifier: IOS_APP_ID, api_key: api_key)
-    update_code_signing_settings(
-      path: PROJECT,
-      targets: ["NotheringiOS"],
-      use_automatic_signing: false,
-      team_id: TEAM_ID,
-      sdk: "iphoneos*",
-      code_sign_identity: "Apple Distribution",
-      profile_name: lane_context[SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING][IOS_APP_ID]
-    )
+  match(type: "appstore", platform: "ios", app_identifier: IOS_APP_ID, api_key: api_key)
+  update_code_signing_settings(
+    path: PROJECT,
+    targets: ["NotheringiOS"],
+    use_automatic_signing: false,
+    team_id: TEAM_ID,
+    sdk: "iphoneos*",
+    code_sign_identity: "Apple Distribution",
+    profile_name: lane_context[SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING][IOS_APP_ID]
+  )
 
-    build_app(
-      workspace: WORKSPACE,
-      scheme: "NotheringiOS",
-      configuration: "Release",
-      export_method: "app-store",
-      output_directory: OUTPUT_DIR
-    )
-    upload_to_testflight(api_key: api_key, skip_waiting_for_build_processing: true)
-  end
+  build_app(
+    workspace: WORKSPACE,
+    scheme: "NotheringiOS",
+    configuration: "Release",
+    export_method: "app-store",
+    output_directory: OUTPUT_DIR
+  )
+
+  changelog = File.exist?(RELEASE_NOTES) ? File.read(RELEASE_NOTES).strip : ""
+  upload_to_testflight(
+    api_key: api_key,
+    changelog: changelog.empty? ? nil : changelog,
+    skip_waiting_for_build_processing: true
+  )
 end
 
-platform :mac do
-  desc "Build the menu bar app with Developer ID, notarize it, and zip it"
-  lane :release do |options|
-    api_key = app_store_connect_api_key
-    generate_project(options[:build_number])
+def build_mac(api_key, build_number)
+  generate_project(build_number)
+  version = current_version
 
-    match(type: "developer_id", platform: "macos", app_identifier: [MAC_APP_ID, MAC_EXTENSION_ID], api_key: api_key)
-    profiles = lane_context[SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING]
-    {
-      "NotheringMenuBar" => [MAC_APP_ID, "MacApp/App.entitlements"],
-      "NotheringProxyExtension" => [MAC_EXTENSION_ID, "MacProxy/Proxy.entitlements"],
-    }.each do |target, (bundle_id, entitlements)|
-      update_code_signing_settings(
-        path: PROJECT,
-        targets: [target],
-        use_automatic_signing: false,
-        team_id: TEAM_ID,
-        sdk: "macosx*",
-        code_sign_identity: "Developer ID Application",
-        profile_name: profiles[bundle_id],
-        entitlements_file_path: developer_id_entitlements(entitlements)
-      )
-    end
-
-    app_path = build_app(
-      workspace: WORKSPACE,
-      scheme: "NotheringMenuBar",
-      configuration: "Release",
-      export_method: "developer-id",
-      output_directory: OUTPUT_DIR
+  match(type: "developer_id", platform: "macos", app_identifier: [MAC_APP_ID, MAC_EXTENSION_ID], api_key: api_key)
+  profiles = lane_context[SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING]
+  {
+    "NotheringMenuBar" => [MAC_APP_ID, "MacApp/App.entitlements"],
+    "NotheringProxyExtension" => [MAC_EXTENSION_ID, "MacProxy/Proxy.entitlements"],
+  }.each do |target, (bundle_id, entitlements)|
+    update_code_signing_settings(
+      path: PROJECT,
+      targets: [target],
+      use_automatic_signing: false,
+      team_id: TEAM_ID,
+      sdk: "macosx*",
+      code_sign_identity: "Developer ID Application",
+      profile_name: profiles[bundle_id],
+      entitlements_file_path: developer_id_entitlements(entitlements)
     )
-    notarize(package: app_path, api_key: api_key)
-
-    version = get_info_plist_value(path: File.join(app_path, "Contents/Info.plist"), key: "CFBundleShortVersionString")
-    zip_path = File.join(ROOT, OUTPUT_DIR, "Nothering-#{version}.zip")
-    sh("ditto", "-c", "-k", "--keepParent", app_path, zip_path)
-    UI.success("Notarized build: #{zip_path}")
   end
+  # The CLI has no restricted entitlements, so it needs the certificate but no profile.
+  update_code_signing_settings(
+    path: PROJECT,
+    targets: ["NotheringMac"],
+    use_automatic_signing: false,
+    team_id: TEAM_ID,
+    sdk: "macosx*",
+    code_sign_identity: "Developer ID Application"
+  )
+
+  app_path = build_app(
+    workspace: WORKSPACE,
+    scheme: "NotheringMenuBar",
+    configuration: "Release",
+    export_method: "developer-id",
+    output_directory: OUTPUT_DIR
+  )
+  notarize(package: app_path, api_key: api_key)
+  app_zip = File.join(OUTPUT_DIR, "Nothering-#{version}.zip")
+  sh("ditto", "-c", "-k", "--keepParent", app_path, app_zip)
+
+  derived_data = File.join(OUTPUT_DIR, "DerivedData")
+  sh(
+    "xcodebuild", "build", "-quiet",
+    "-workspace", File.join(ROOT, WORKSPACE),
+    "-scheme", "NotheringMac",
+    "-configuration", "Release",
+    "-destination", "generic/platform=macOS",
+    "-derivedDataPath", derived_data,
+    "OTHER_CODE_SIGN_FLAGS=--timestamp",
+    # Plain builds add get-task-allow (archive export strips it); notarization rejects it.
+    "CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO"
+  )
+  # A bare binary can't be stapled; Gatekeeper looks the ticket up online instead.
+  cli_zip = File.join(OUTPUT_DIR, "nothering-cli-#{version}.zip")
+  sh("ditto", "-c", "-k", File.join(derived_data, "Build/Products/Release/nothering"), cli_zip)
+  notarize(package: cli_zip, api_key: api_key, skip_stapling: true)
+
+  UI.success("Notarized: #{app_zip}, #{cli_zip}")
 end
