@@ -60,9 +60,7 @@ struct NotheringMenuBarApp: App {
           ForEach(PhoneForwarder.Preference.allCases, id: \.self) { Text($0.rawValue) }
         }
         .pickerStyle(.segmented)
-        Picker("Turn on when", selection: $forwarder.autoTurnOn) {
-          ForEach(PhoneForwarder.AutoTurnOn.allCases, id: \.self) { Text($0.rawValue) }
-        }
+        Toggle("Turn on when iPhone proxy starts", isOn: $forwarder.autoTurnOn)
         Divider()
         HStack {
           Toggle("Launch at Login", isOn: Binding(get: { launchesAtLogin }, set: setLaunchesAtLogin))
