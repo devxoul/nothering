@@ -12,11 +12,14 @@ final class DatagramRelay {
 
   /// Bounds per-session sockets for apps that talk to many peers (e.g. WebRTC).
   private static let maxPeers = 256
+  /// Datagrams kept per peer until its connection is ready, to resend if it falls back to NAT64.
+  private static let maxUnconfirmed = 32
 
   private let client: ByteStream
   private unowned let server: ProxyServer
   private let onClose: () -> Void
   private var peers: [Peer: NWConnection] = [:]
+  private var unconfirmed: [Peer: [Data]] = [:]
   private var closed = false
 
   init(client: ByteStream, server: ProxyServer, onClose: @escaping () -> Void) {
@@ -37,6 +40,7 @@ final class DatagramRelay {
       connection.cancel()
     }
     peers.removeAll()
+    unconfirmed.removeAll()
   }
 
   private func readFrame() {
@@ -47,6 +51,9 @@ final class DatagramRelay {
         let peer = Peer(host: frame.host, port: frame.port)
         let connection = peers[peer] ?? open(peer, via: peer.host)
         connection.send(content: frame.payload, completion: .contentProcessed { _ in })
+        if connection.state != .ready, unconfirmed[peer, default: []].count < Self.maxUnconfirmed {
+          unconfirmed[peer, default: []].append(frame.payload)
+        }
         readFrame()
       }
     }
@@ -63,6 +70,7 @@ final class DatagramRelay {
   private func open(_ peer: Peer, via host: NWEndpoint.Host) -> NWConnection {
     if peers.count >= Self.maxPeers, let evicted = peers.keys.first {
       peers.removeValue(forKey: evicted)?.cancel()
+      unconfirmed.removeValue(forKey: evicted)
     }
     let parameters = NWParameters.udp
     if let interfaceType = server.configuration.requiredInterfaceType {
@@ -73,13 +81,20 @@ final class DatagramRelay {
     connection.stateUpdateHandler = { [weak self, weak connection] state in
       guard let self, let connection, peers[peer] === connection else { return }
       switch state {
+      case .ready:
+        unconfirmed.removeValue(forKey: peer)
       case let .waiting(error) where Session.isNoRoute(error) && host == peer.host:
-        // Same as TCP: IPv4 literals on an IPv6-only carrier go through NAT64.
+        // Same as TCP: IPv4 literals on an IPv6-only carrier go through NAT64. Datagrams already
+        // handed to the dead connection are resent, or one-shot protocols (NTP, STUN) never answer.
         guard let nat64 = Session.nat64Address(for: host) else { return }
         connection.cancel()
-        _ = open(peer, via: .ipv6(nat64))
+        let replacement = open(peer, via: .ipv6(nat64))
+        for payload in unconfirmed.removeValue(forKey: peer) ?? [] {
+          replacement.send(content: payload, completion: .contentProcessed { _ in })
+        }
       case .failed:
         peers.removeValue(forKey: peer)
+        unconfirmed.removeValue(forKey: peer)
         connection.cancel()
       default:
         break
