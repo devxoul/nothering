@@ -12,6 +12,7 @@ final class ExtensionController: NSObject {
 
   private(set) var status = "Off"
   private(set) var isRunning = false
+  private(set) var isExtensionInstalled = false
   private var manager: NETransparentProxyManager?
 
   override init() {
@@ -121,12 +122,16 @@ extension ExtensionController: OSSystemExtensionRequestDelegate {
 
   nonisolated func request(_ request: OSSystemExtensionRequest, didFinishWithResult result: OSSystemExtensionRequest.Result) {
     Task { @MainActor in
+      isExtensionInstalled = result == .completed
       status = "Off"
       refreshStatus()
     }
   }
 
   nonisolated func request(_ request: OSSystemExtensionRequest, didFailWithError error: Error) {
-    Task { @MainActor in status = "Error: \(error.localizedDescription)" }
+    Task { @MainActor in
+      isExtensionInstalled = false
+      status = "Error: \(error.localizedDescription)"
+    }
   }
 }

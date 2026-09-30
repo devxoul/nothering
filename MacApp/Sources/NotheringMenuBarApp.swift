@@ -50,7 +50,12 @@ struct NotheringMenuBarApp: App {
         Divider()
         Toggle("Launch at Login", isOn: Binding(get: { launchesAtLogin }, set: setLaunchesAtLogin))
         HStack {
-          Button("Install Extension") { controller.installExtension() }
+          if controller.isExtensionInstalled {
+            Label("Extension Installed", systemImage: "checkmark.circle.fill")
+              .foregroundStyle(.secondary)
+          } else {
+            Button("Install Extension") { controller.installExtension() }
+          }
           Spacer()
           Button("Quit Nothering") { NSApplication.shared.terminate(nil) }
         }
