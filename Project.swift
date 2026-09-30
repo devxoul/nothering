@@ -52,7 +52,7 @@ let project = Project(
         "UIBackgroundModes": ["audio"],
       ]) { $1 }),
       sources: ["iOS/App/**"],
-      resources: ["Shared/AppIcon.icon"],
+      resources: ["Shared/AppIcon.icon", "iOS/Resources/**"],
       dependencies: [.target(name: "ProxyCore")]
     ),
     .target(
