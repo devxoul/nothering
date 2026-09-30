@@ -10,6 +10,7 @@ struct NotheringMenuBarApp: App {
   @State private var launchesAtLogin = SMAppService.mainApp.status == .enabled
 
   init() {
+    Self.relaunchFromApplicationsIfNeeded()
     let forwarder = PhoneForwarder()
     forwarder.start()
     _forwarder = State(initialValue: forwarder)
@@ -45,6 +46,29 @@ struct NotheringMenuBarApp: App {
     // Re-reading the status afterwards reflects a failed (un)registration in the toggle.
     try? enabled ? SMAppService.mainApp.register() : SMAppService.mainApp.unregister()
     launchesAtLogin = SMAppService.mainApp.status == .enabled
+  }
+
+  /// macOS only activates system extensions from apps in /Applications, so a build run from elsewhere
+  /// (e.g. DerivedData) replaces the installed copy and relaunches from there.
+  private static func relaunchFromApplicationsIfNeeded() {
+    let source = Bundle.main.bundleURL.resolvingSymlinksInPath()
+    let destination = URL(filePath: "/Applications").appending(path: source.lastPathComponent)
+    guard source.deletingLastPathComponent().path != "/Applications" else { return }
+
+    for app in NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier ?? "")
+    where app.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+      app.forceTerminate()
+    }
+    do {
+      if FileManager.default.fileExists(atPath: destination.path) {
+        try FileManager.default.removeItem(at: destination)
+      }
+      try FileManager.default.copyItem(at: source, to: destination)
+      try Process.run(URL(filePath: "/usr/bin/open"), arguments: ["-n", destination.path]).waitUntilExit()
+      exit(0)
+    } catch {
+      NSLog("Nothering: could not relaunch from /Applications: \(error)")
+    }
   }
 
   private static func describe(_ stats: LocalForwarder.Stats) -> String {
