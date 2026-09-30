@@ -9,10 +9,13 @@ import SystemExtensions
 @Observable
 final class ExtensionController: NSObject {
   static let extensionIdentifier = "app.nothering.mac.proxy"
+  static let approvalSettingsURL = URL(string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension")!
 
   private(set) var status = "Off"
   private(set) var isRunning = false
   private(set) var isExtensionInstalled = false
+  /// Whether macOS holds the extension until the user allows it in System Settings.
+  private(set) var needsApproval = false
   private var manager: NETransparentProxyManager?
 
   override init() {
@@ -115,14 +118,16 @@ extension ExtensionController: OSSystemExtensionRequestDelegate {
 
   nonisolated func requestNeedsUserApproval(_ request: OSSystemExtensionRequest) {
     Task { @MainActor in
+      needsApproval = true
       status = "Approve the extension in System Settings"
-      NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension")!)
+      NSWorkspace.shared.open(Self.approvalSettingsURL)
     }
   }
 
   nonisolated func request(_ request: OSSystemExtensionRequest, didFinishWithResult result: OSSystemExtensionRequest.Result) {
     Task { @MainActor in
       isExtensionInstalled = result == .completed
+      needsApproval = false
       status = "Off"
       refreshStatus()
     }
@@ -131,6 +136,7 @@ extension ExtensionController: OSSystemExtensionRequestDelegate {
   nonisolated func request(_ request: OSSystemExtensionRequest, didFailWithError error: Error) {
     Task { @MainActor in
       isExtensionInstalled = false
+      needsApproval = false
       status = "Error: \(error.localizedDescription)"
     }
   }
