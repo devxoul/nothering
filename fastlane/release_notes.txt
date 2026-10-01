@@ -1,3 +1,4 @@
 The proxy now shows as a Live Activity on the Lock Screen and Dynamic Island while it runs. Check that it appears when you start the proxy and goes away when you stop it.
 Stopping the proxy now takes a second tap, so it does not get turned off by accident.
 The proxy keeps running more reliably in the background and comes back after the app is relaunched. Leave it running for a while with the screen locked and check the Mac stays connected.
+The Mac now finds the iPhone on hotspots that only hand out IPv6 addresses. If your hotspot was not detected before, try connecting again.
