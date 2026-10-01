@@ -75,7 +75,10 @@ final class PhoneForwarder {
         self.stats = forwarder.currentStats()
       }
     }
-    pathMonitor.pathUpdateHandler = { [weak self] _ in
+    pathMonitor.pathUpdateHandler = { [weak self, route] path in
+      // macOS marks an iPhone's Personal Hotspot as expensive, which identifies it even on IPv6-only
+      // hotspots that hand out no 172.20.10.x address.
+      route.isOnExpensiveWiFi = path.isExpensive && path.usesInterfaceType(.wifi)
       Task { @MainActor in self?.refreshLink() }
     }
     pathMonitor.start(queue: .global())
@@ -115,10 +118,16 @@ final class PhoneRoute: @unchecked Sendable {
   private var usbDeviceID: Int?
   private var hotspotGateway: String?
   private var storedPreference = PhoneForwarder.Preference.auto
+  private var storedIsOnExpensiveWiFi = false
 
   var preference: PhoneForwarder.Preference {
     get { lock.withLock { storedPreference } }
     set { lock.withLock { storedPreference = newValue } }
+  }
+
+  var isOnExpensiveWiFi: Bool {
+    get { lock.withLock { storedIsOnExpensiveWiFi } }
+    set { lock.withLock { storedIsOnExpensiveWiFi = newValue } }
   }
 
   @discardableResult
@@ -165,7 +174,11 @@ final class PhoneRoute: @unchecked Sendable {
         close(fd)
         proxyAnswers = true
       }
-      let state = PhoneLinkDiagnosis.hotspot(proxyAnswers: proxyAnswers, isIPhoneHotspot: Hotspot.isIPhoneHotspot())
+      let state = PhoneLinkDiagnosis.hotspot(
+        proxyAnswers: proxyAnswers,
+        isIPhoneHotspot: Hotspot.isIPhoneHotspot(),
+        isOnExpensiveWiFi: isOnExpensiveWiFi
+      )
       return (state, gateway)
     } catch {
       return (.notFound, nil)

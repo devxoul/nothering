@@ -35,10 +35,11 @@ public enum PhoneLinkDiagnosis {
   }
 
   /// Classifies a found default gateway. One whose proxy doesn't answer counts as the phone only on an iPhone
-  /// hotspot subnet, since any IPv6 router can be the gateway.
-  public static func hotspot(proxyAnswers: Bool, isIPhoneHotspot: Bool) -> HotspotState {
+  /// hotspot subnet or an expensive Wi-Fi path (how macOS marks IPv6-only iPhone hotspots), since any IPv6
+  /// router can be the gateway.
+  public static func hotspot(proxyAnswers: Bool, isIPhoneHotspot: Bool, isOnExpensiveWiFi: Bool) -> HotspotState {
     if proxyAnswers { return .found(proxyAnswers: true) }
-    return isIPhoneHotspot ? .found(proxyAnswers: false) : .notFound
+    return isIPhoneHotspot || isOnExpensiveWiFi ? .found(proxyAnswers: false) : .notFound
   }
 
   public static func evaluate(preference: Preference, usb: USBState, hotspot: HotspotState) -> Result {
