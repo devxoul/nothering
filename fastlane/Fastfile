@@ -4,6 +4,8 @@ WORKSPACE = "Nothering.xcworkspace"
 PROJECT = "Nothering.xcodeproj"
 OUTPUT_DIR = File.join(ROOT, "build/fastlane")
 RELEASE_NOTES = File.join(__dir__, "release_notes.txt")
+SOURCE_PACKAGES = File.join(OUTPUT_DIR, "SourcePackages")
+GITHUB_REPO_URL = "https://github.com/devxoul/nothering"
 
 IOS_APP_ID = "app.nothering.ios"
 MAC_APP_ID = "app.nothering.mac"
@@ -154,11 +156,14 @@ def build_mac(api_key, build_number)
     scheme: "NotheringMenuBar",
     configuration: "Release",
     export_method: "developer-id",
-    output_directory: OUTPUT_DIR
+    output_directory: OUTPUT_DIR,
+    # A known location, so the Sparkle tools resolved alongside the framework can be found.
+    cloned_source_packages_path: SOURCE_PACKAGES
   )
   notarize(package: app_path, api_key: api_key)
   app_zip = File.join(OUTPUT_DIR, "Nothering-#{version}.zip")
   sh("ditto", "-c", "-k", "--keepParent", app_path, app_zip)
+  generate_appcast(app_zip, version)
 
   derived_data = File.join(OUTPUT_DIR, "DerivedData")
   sh(
@@ -178,4 +183,27 @@ def build_mac(api_key, build_number)
   notarize(package: cli_zip, api_key: api_key, skip_stapling: true)
 
   UI.success("Notarized: #{app_zip}, #{cli_zip}")
+end
+
+# Writes build/fastlane/appcast.xml for the GitHub Release; the app's feed URL follows the latest release.
+# Signs with SPARKLE_PRIVATE_KEY on CI, or the `app.nothering` keychain item from `generate_keys` locally.
+def generate_appcast(app_zip, version)
+  archives = File.join(OUTPUT_DIR, "appcast")
+  FileUtils.rm_rf(archives)
+  FileUtils.mkdir_p(archives)
+  FileUtils.cp(app_zip, archives)
+
+  tool = File.join(SOURCE_PACKAGES, "artifacts/sparkle/Sparkle/bin/generate_appcast").shellescape
+  key = ENV["SPARKLE_PRIVATE_KEY"].to_s.empty? ? "--account app.nothering" : "--ed-key-file -"
+  command = [
+    tool, key,
+    "--download-url-prefix", "#{GITHUB_REPO_URL}/releases/download/#{version}/",
+    "--full-release-notes-url", "#{GITHUB_REPO_URL}/releases/tag/#{version}",
+    "--link", GITHUB_REPO_URL,
+    "-o", File.join(OUTPUT_DIR, "appcast.xml").shellescape,
+    archives.shellescape,
+  ].join(" ")
+  # Piped in so the key never shows up in the logged command.
+  command = %(printf '%s' "$SPARKLE_PRIVATE_KEY" | #{command}) unless ENV["SPARKLE_PRIVATE_KEY"].to_s.empty?
+  sh(command)
 end
