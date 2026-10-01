@@ -8,6 +8,7 @@ SOURCE_PACKAGES = File.join(OUTPUT_DIR, "SourcePackages")
 GITHUB_REPO_URL = "https://github.com/devxoul/nothering"
 
 IOS_APP_ID = "app.nothering.ios"
+IOS_WIDGET_ID = "app.nothering.ios.widget"
 MAC_APP_ID = "app.nothering.mac"
 MAC_EXTENSION_ID = "app.nothering.mac.proxy"
 
@@ -90,16 +91,19 @@ end
 def build_ios(api_key, build_number)
   generate_project(build_number)
 
-  match(type: "appstore", platform: "ios", app_identifier: IOS_APP_ID, api_key: api_key)
-  update_code_signing_settings(
-    path: PROJECT,
-    targets: ["NotheringiOS"],
-    use_automatic_signing: false,
-    team_id: TEAM_ID,
-    sdk: "iphoneos*",
-    code_sign_identity: "Apple Distribution",
-    profile_name: lane_context[SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING][IOS_APP_ID]
-  )
+  match(type: "appstore", platform: "ios", app_identifier: [IOS_APP_ID, IOS_WIDGET_ID], api_key: api_key)
+  profiles = lane_context[SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING]
+  { "NotheringiOS" => IOS_APP_ID, "NotheringiOSWidget" => IOS_WIDGET_ID }.each do |target, bundle_id|
+    update_code_signing_settings(
+      path: PROJECT,
+      targets: [target],
+      use_automatic_signing: false,
+      team_id: TEAM_ID,
+      sdk: "iphoneos*",
+      code_sign_identity: "Apple Distribution",
+      profile_name: profiles[bundle_id]
+    )
+  end
 
   build_app(
     workspace: WORKSPACE,

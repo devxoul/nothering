@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import ProxyCore
+import UIKit
 
 /// Runs the SOCKS5 server in the app process, kept alive in the background by `BackgroundKeeper`.
 ///
@@ -34,6 +35,7 @@ final class ProxyController {
   private var lastSampledAt = ContinuousClock.now
   private var linkSeenAt: [ProxyServer.Link: ContinuousClock.Instant] = [:]
   private let keeper = BackgroundKeeper()
+  private let activity = StatusActivity()
   private var statsTimer: Timer?
 
   /// Whether the user left the proxy on, so a relaunch after iOS terminated the app starts it again.
@@ -43,10 +45,18 @@ final class ProxyController {
     UserDefaults.standard.bool(forKey: Self.wasRunningKey)
   }
 
+  init() {
+    NotificationCenter.default.addObserver(forName: UIApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
+      MainActor.assumeIsolated { self?.activity.markClosed() }
+    }
+  }
+
   /// Called when the app becomes active, in case the keeper stopped while the app was suspended.
+  /// Also restarts the Live Activity, which iOS ends after 8 hours and only lets the foreground app start.
   func resumeKeeper() {
-    guard isRunning else { return }
+    guard isRunning, let startedAt else { return }
     keeper.resume()
+    activity.start(startedAt: startedAt)
   }
 
   func toggle() async {
@@ -74,7 +84,8 @@ final class ProxyController {
     samples = []
     macLinks = []
     linkSeenAt = [:]
-    startedAt = .now
+    let startedAt = Date.now
+    self.startedAt = startedAt
     lastSampledAt = .now
     isRunning = true
     UserDefaults.standard.set(true, forKey: Self.wasRunningKey)
@@ -83,6 +94,7 @@ final class ProxyController {
     }
     RunLoop.main.add(timer, forMode: .common)
     statsTimer = timer
+    activity.start(startedAt: startedAt)
   }
 
   func stop() {
@@ -91,6 +103,7 @@ final class ProxyController {
     server?.stop()
     server = nil
     keeper.stop()
+    activity.stop()
     startedAt = nil
     isRunning = false
     UserDefaults.standard.set(false, forKey: Self.wasRunningKey)
@@ -125,5 +138,6 @@ final class ProxyController {
       linkSeenAt[.hotspot] = now
     }
     macLinks = Set(linkSeenAt.filter { now - $0.value < Self.linkTimeout }.keys)
+    activity.update(usb: macLinks.contains(.usb), hotspot: macLinks.contains(.hotspot))
   }
 }
