@@ -81,7 +81,6 @@ Releases go through [fastlane](https://fastlane.tools) with [match](https://docs
 | `MATCH_GIT_URL`, `MATCH_PASSWORD` | Private certificates repo and its passphrase |
 | `APP_STORE_CONNECT_API_KEY_KEY_ID`, `APP_STORE_CONNECT_API_KEY_ISSUER_ID`, `APP_STORE_CONNECT_API_KEY_KEY_FILEPATH` | App Store Connect API key (`.p8`) |
 | `SPARKLE_PRIVATE_KEY` | Signs the Mac app's update feed. Optional locally: falls back to the `app.nothering` keychain item from Sparkle's `generate_keys` |
-| `BETA_CONTACT_FIRST_NAME`, `BETA_CONTACT_LAST_NAME`, `BETA_CONTACT_EMAIL`, `BETA_CONTACT_PHONE` | Beta App Review contact for external TestFlight testing (the email doubles as the feedback address). Required by `release` and `ios beta` |
 
 ```sh
 bundle install
