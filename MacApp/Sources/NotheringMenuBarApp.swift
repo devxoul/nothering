@@ -21,7 +21,7 @@ struct NotheringMenuBarApp: App {
     }
     forwarder.start()
     _forwarder = State(initialValue: forwarder)
-    controller.installExtension()
+    controller.checkExtension()
     _controller = State(initialValue: controller)
     AppDelegate.controller = controller
   }
