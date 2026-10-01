@@ -9,7 +9,9 @@ import SystemExtensions
 @Observable
 final class ExtensionController: NSObject {
   static let extensionIdentifier = "app.nothering.mac.proxy"
-  static let approvalSettingsURL = URL(string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension")!
+  /// The legacy Extensions pane ID still resolves to Login Items & Extensions; `extension-points` scrolls to
+  /// Extensions with the By Category tab selected.
+  static let approvalSettingsURL = URL(string: "x-apple.systempreferences:com.apple.ExtensionsPreferences?extension-points")!
   private static let hasTurnedOnKey = "hasTurnedOn"
 
   private(set) var status = "Off"
@@ -24,6 +26,8 @@ final class ExtensionController: NSObject {
   private var manager: NETransparentProxyManager?
   private var loading: Task<Void, Never>?
   private var isRemoving = false
+  private var propertiesRequest: ObjectIdentifier?
+  private var isWatchingApproval = false
 
   override init() {
     super.init()
@@ -34,7 +38,6 @@ final class ExtensionController: NSObject {
   }
 
   func installExtension() {
-    status = "Installing extension…"
     let request = OSSystemExtensionRequest.activationRequest(forExtensionWithIdentifier: Self.extensionIdentifier, queue: .main)
     request.delegate = self
     OSSystemExtensionManager.shared.submitRequest(request)
@@ -54,6 +57,55 @@ final class ExtensionController: NSObject {
     let request = OSSystemExtensionRequest.deactivationRequest(forExtensionWithIdentifier: Self.extensionIdentifier, queue: .main)
     request.delegate = self
     OSSystemExtensionManager.shared.submitRequest(request)
+  }
+
+  /// Looks up the extension's state without activating it, so launching never triggers the system's approval alert.
+  /// An already approved extension is re-activated to pick up a newer bundled version, which macOS does silently.
+  func checkExtension() {
+    let request = OSSystemExtensionRequest.propertiesRequest(forExtensionWithIdentifier: Self.extensionIdentifier, queue: .main)
+    request.delegate = self
+    propertiesRequest = ObjectIdentifier(request)
+    OSSystemExtensionManager.shared.submitRequest(request)
+  }
+
+  /// Starts approval: activates the extension if it was never submitted (macOS then asks for approval),
+  /// otherwise opens the Login Items & Extensions pane with step-by-step instructions beside it.
+  func approveExtension() {
+    if needsApproval {
+      openApprovalSettings()
+    } else {
+      installExtension()
+    }
+  }
+
+  private func openApprovalSettings() {
+    ApprovalGuide.openSettings()
+    ApprovalGuide.show()
+    // Approving an extension that was already waiting doesn't call back any request, so watch for it.
+    guard !isWatchingApproval else { return }
+    isWatchingApproval = true
+    checkExtension()
+  }
+
+  private func foundProperties(_ properties: [OSSystemExtensionProperties]) {
+    let current = properties.filter { !$0.isUninstalling }
+    if current.contains(where: \.isEnabled) {
+      let wasApproving = needsApproval || isWatchingApproval
+      isWatchingApproval = false
+      needsApproval = false
+      guard !isExtensionInstalled else { return }
+      if wasApproving {
+        isExtensionInstalled = true
+        ApprovalGuide.close(approved: true)
+      } else {
+        installExtension()
+      }
+    } else {
+      needsApproval = current.contains(where: \.isAwaitingUserApproval)
+      if isWatchingApproval {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.checkExtension() }
+      }
+    }
   }
 
   func toggle() async {
@@ -154,28 +206,38 @@ extension ExtensionController: OSSystemExtensionRequestDelegate {
   nonisolated func requestNeedsUserApproval(_ request: OSSystemExtensionRequest) {
     Task { @MainActor in
       needsApproval = true
-      status = "Approve the extension in System Settings"
-      NSWorkspace.shared.open(Self.approvalSettingsURL)
+      openApprovalSettings()
     }
   }
 
+  nonisolated func request(_ request: OSSystemExtensionRequest, foundProperties properties: [OSSystemExtensionProperties]) {
+    Task { @MainActor in foundProperties(properties) }
+  }
+
   nonisolated func request(_ request: OSSystemExtensionRequest, didFinishWithResult result: OSSystemExtensionRequest.Result) {
+    let id = ObjectIdentifier(request)
     Task { @MainActor in
+      guard id != propertiesRequest else { return }
       isExtensionInstalled = !isRemoving && result == .completed
       isRemoving = false
       needsApproval = false
-      status = "Off"
+      isWatchingApproval = false
       refreshStatus()
+      ApprovalGuide.close(approved: isExtensionInstalled)
     }
   }
 
   nonisolated func request(_ request: OSSystemExtensionRequest, didFailWithError error: Error) {
+    let id = ObjectIdentifier(request)
     Task { @MainActor in
+      guard id != propertiesRequest else { return }
       // A failed removal leaves the extension installed.
       isExtensionInstalled = isRemoving
       isRemoving = false
+      isWatchingApproval = false
       needsApproval = false
       status = "Error: \(error.localizedDescription)"
+      ApprovalGuide.close(approved: false)
     }
   }
 }
