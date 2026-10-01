@@ -13,6 +13,11 @@ MAC_APP_ID = "app.nothering.mac"
 MAC_EXTENSION_ID = "app.nothering.mac.proxy"
 
 EXTERNAL_TESTER_GROUP = "Beta Testers"
+BETA_APP_DESCRIPTION = <<~TEXT.strip
+  Nothering lets a Mac use the iPhone's cellular connection without it looking like tethering. The iPhone app runs a small proxy, and the Mac app sends its traffic through it over USB or Personal Hotspot.
+
+  To test, start the proxy on the iPhone, connect a Mac running the Nothering menu bar app, and check that websites load on the Mac.
+TEXT
 
 VERSION_PATTERN = /("CFBundleShortVersionString": ")([^"]+)(")/
 
@@ -40,6 +45,7 @@ end
 
 desc "Release both apps: notarized Mac app + CLI in build/fastlane/, iPhone app to TestFlight"
 lane :release do
+  beta_contact # fail before the Mac build if the TestFlight contact isn't set
   api_key = app_store_connect_api_key
   build_number = next_build_number(api_key)
   # Mac first: it has no public side effect, so most failures happen before the TestFlight upload.
@@ -88,7 +94,22 @@ def developer_id_entitlements(path)
   output
 end
 
+# Beta App Review contact, kept out of the repo. Also the testers' feedback email.
+def beta_contact
+  contact = {
+    contact_first_name: ENV.fetch("BETA_CONTACT_FIRST_NAME", ""),
+    contact_last_name: ENV.fetch("BETA_CONTACT_LAST_NAME", ""),
+    contact_email: ENV.fetch("BETA_CONTACT_EMAIL", ""),
+    contact_phone: ENV.fetch("BETA_CONTACT_PHONE", ""),
+    demo_account_required: false
+  }
+  missing = contact.select { |_, value| value == "" }.keys
+  UI.user_error!("Missing Beta App Review contact: #{missing.join(', ')}") unless missing.empty?
+  contact
+end
+
 def build_ios(api_key, build_number)
+  contact = beta_contact
   generate_project(build_number)
 
   match(type: "appstore", platform: "ios", app_identifier: [IOS_APP_ID, IOS_WIDGET_ID], api_key: api_key)
@@ -117,6 +138,10 @@ def build_ios(api_key, build_number)
   upload_to_testflight(
     api_key: api_key,
     changelog: changelog.empty? ? nil : changelog,
+    # Beta App Review rejects external submissions without test information and a contact.
+    beta_app_description: BETA_APP_DESCRIPTION,
+    beta_app_feedback_email: contact[:contact_email],
+    beta_app_review_info: contact,
     # External groups need a processed build, so wait for it and submit it for beta review.
     distribute_external: true,
     groups: [EXTERNAL_TESTER_GROUP],
