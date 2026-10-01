@@ -1,3 +1,4 @@
+import Sparkle
 import SwiftUI
 
 @main
@@ -5,9 +6,11 @@ struct NotheringMenuBarApp: App {
   @NSApplicationDelegateAdaptor private var appDelegate: AppDelegate
   @State private var controller: ExtensionController
   @State private var forwarder: PhoneForwarder
+  private let updater: SPUStandardUpdaterController
 
   init() {
     Self.relaunchFromApplicationsIfNeeded()
+    updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
     let controller = ExtensionController()
     let forwarder = PhoneForwarder()
     forwarder.onAutoTurnOn = { [weak controller] isReachable in
@@ -28,7 +31,7 @@ struct NotheringMenuBarApp: App {
 
   var body: some Scene {
     MenuBarExtra("Nothering", image: controller.isRunning ? "MenuBarIcon" : "MenuBarIconOff") {
-      MenuBarPanel(controller: controller, forwarder: forwarder)
+      MenuBarPanel(controller: controller, forwarder: forwarder, updater: updater.updater)
     }
     .menuBarExtraStyle(.window)
   }

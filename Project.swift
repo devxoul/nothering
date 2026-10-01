@@ -23,8 +23,18 @@ let localNetworkUsage: [String: Plist.Value] = [
   "NSLocalNetworkUsageDescription": "Nothering accepts proxy connections from devices on your Personal Hotspot.",
 ]
 
+// Sparkle reads the newest release's appcast.xml, attached to every GitHub Release by fastlane.
+let sparkle: [String: Plist.Value] = [
+  "SUFeedURL": "https://github.com/devxoul/nothering/releases/latest/download/appcast.xml",
+  "SUPublicEDKey": "Ks/eJWVB8/QBEaOubJWsIiTag+a2oDyxScuqZIcSrV8=",
+  "SUEnableAutomaticChecks": true,
+]
+
 let project = Project(
   name: "Nothering",
+  packages: [
+    .remote(url: "https://github.com/sparkle-project/Sparkle", requirement: .upToNextMajor(from: "2.10.0")),
+  ],
   settings: .settings(base: baseSettings),
   targets: [
     .target(
@@ -103,7 +113,7 @@ let project = Project(
         "CFBundleDisplayName": "Nothering",
         "LSUIElement": true,
         "CFBundleURLTypes": [["CFBundleURLName": "app.nothering.mac", "CFBundleURLSchemes": ["nothering"]]],
-      ]) { $1 }),
+      ]) { $1 }.merging(sparkle) { $1 }),
       sources: ["MacApp/Sources/**"],
       resources: ["MacApp/Resources/**", "Shared/AppIcon.icon"],
       entitlements: "MacApp/App.entitlements",
@@ -111,6 +121,7 @@ let project = Project(
         .target(name: "NotheringProxyExtension"),
         .target(name: "ProxyCore"),
         .target(name: "PhoneLink"),
+        .package(product: "Sparkle"),
       ],
       settings: .settings(base: hardenedRuntime.merging(["CODE_SIGN_IDENTITY[sdk=macosx*]": "Apple Development"]) { $1 })
     ),
