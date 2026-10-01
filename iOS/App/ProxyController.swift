@@ -1,6 +1,8 @@
 import Foundation
 import Observation
 import ProxyCore
+import UIKit
+import UserNotifications
 
 /// Runs the SOCKS5 server in the app process, kept alive in the background by `BackgroundKeeper`.
 ///
@@ -43,6 +45,34 @@ final class ProxyController {
     UserDefaults.standard.bool(forKey: Self.wasRunningKey)
   }
 
+  init() {
+    NotificationCenter.default.addObserver(forName: UIApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
+      MainActor.assumeIsolated {
+        guard self?.isRunning == true else { return }
+        Self.notifyTermination()
+      }
+    }
+  }
+
+  /// Tells the user the proxy went down with the app, so they can reopen it (which restores the proxy).
+  ///
+  /// The process exits right after `willTerminate` returns, so this waits briefly for the request
+  /// to reach the notification daemon.
+  private static func notifyTermination() {
+    let content = UNMutableNotificationContent()
+    content.title = "Nothering was closed"
+    content.body = "Your Mac is no longer using this iPhone's cellular. Tap to reopen Nothering and keep sharing."
+    content.sound = .default
+    let request = UNNotificationRequest(
+      identifier: "terminated",
+      content: content,
+      trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+    )
+    let semaphore = DispatchSemaphore(value: 0)
+    UNUserNotificationCenter.current().add(request) { _ in semaphore.signal() }
+    _ = semaphore.wait(timeout: .now() + 2)
+  }
+
   /// Called when the app becomes active, in case the keeper stopped while the app was suspended.
   func resumeKeeper() {
     guard isRunning else { return }
@@ -83,6 +113,8 @@ final class ProxyController {
     }
     RunLoop.main.add(timer, forMode: .common)
     statsTimer = timer
+    // Needed for the notification posted if iOS terminates the app while the proxy is running.
+    _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
   }
 
   func stop() {
