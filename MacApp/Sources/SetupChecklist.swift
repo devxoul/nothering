@@ -4,12 +4,12 @@ import SwiftUI
 /// The steps between a fresh install and capturing traffic, shown in the menu bar panel until they all pass.
 struct SetupChecklist: View {
   var isExtensionInstalled: Bool
-  var needsApproval: Bool
   var isPhoneConnected: Bool
   var connectionMethod: String?
   var isProxyRunning: Bool
   var proxyHint: String?
-  var installExtension: () -> Void
+  var approveExtension: () -> Void
+  @Environment(\.dismiss) private var dismiss
 
   var isComplete: Bool { isExtensionInstalled && isPhoneConnected && isProxyRunning }
 
@@ -33,19 +33,12 @@ struct SetupChecklist: View {
     if isExtensionInstalled {
       return Step(title: "Extension approved", status: .done)
     }
-    if needsApproval {
-      return Step(
-        title: "Extension approved",
-        status: .inProgress,
-        explanation: "Allow Nothering in Login Items & Extensions",
-        action: ("Open Settings", { NSWorkspace.shared.open(ExtensionController.approvalSettingsURL) })
-      )
-    }
+    // Closes the panel first; it would otherwise cover System Settings and the guide.
     return Step(
-      title: "Extension approved",
-      status: .pending,
-      explanation: "Install it, then allow it in System Settings",
-      action: ("Install", installExtension)
+      title: "Approve the extension",
+      status: .actionNeeded,
+      explanation: "Turn on Nothering in System Settings. We'll show you where.",
+      action: ("Approve…", { dismiss(); approveExtension() })
     )
   }
 }
@@ -54,18 +47,17 @@ extension SetupChecklist {
   init(controller: ExtensionController, forwarder: PhoneForwarder) {
     self.init(
       isExtensionInstalled: controller.isExtensionInstalled,
-      needsApproval: controller.needsApproval,
       isPhoneConnected: forwarder.detected != .none || forwarder.link != .none,
       connectionMethod: [forwarder.link, forwarder.detected].first { $0 != .none }?.rawValue,
       isProxyRunning: forwarder.link != .none,
       proxyHint: forwarder.hint,
-      installExtension: controller.installExtension
+      approveExtension: controller.approveExtension
     )
   }
 }
 
 private struct Step: View {
-  enum Status { case done, inProgress, pending }
+  enum Status { case done, actionNeeded, pending }
 
   let title: String
   let status: Status
@@ -78,7 +70,9 @@ private struct Step: View {
         icon.frame(width: 16, height: 16)
         Text(title).foregroundStyle(status == .done ? .secondary : .primary)
         Spacer(minLength: 8)
-        if status != .done, let action {
+        if status == .actionNeeded, let action {
+          Button(action.title, action: action.perform).controlSize(.small).buttonStyle(.borderedProminent)
+        } else if status != .done, let action {
           Button(action.title, action: action.perform).controlSize(.small)
         }
       }
@@ -86,6 +80,7 @@ private struct Step: View {
         Text(explanation)
           .font(.subheadline)
           .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
           .padding(.leading, 22)
       }
     }
@@ -95,8 +90,8 @@ private struct Step: View {
     switch status {
     case .done:
       Image(systemName: "checkmark.circle.fill").foregroundStyle(.green).accessibilityLabel("Done")
-    case .inProgress:
-      ProgressView().controlSize(.small).accessibilityLabel("In progress")
+    case .actionNeeded:
+      Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.orange).accessibilityLabel("Action needed")
     case .pending:
       Image(systemName: "circle").foregroundStyle(.secondary).accessibilityLabel("Not done")
     }
@@ -107,27 +102,24 @@ private struct Step: View {
   VStack(alignment: .leading, spacing: 14) {
     SetupChecklist(
       isExtensionInstalled: false,
-      needsApproval: false,
       isPhoneConnected: false,
       isProxyRunning: false,
-      installExtension: {}
+      approveExtension: {}
     )
     Divider()
     SetupChecklist(
       isExtensionInstalled: false,
-      needsApproval: true,
       isPhoneConnected: true,
       isProxyRunning: false,
       proxyHint: "Tap Start Proxy on your iPhone",
-      installExtension: {}
+      approveExtension: {}
     )
     Divider()
     SetupChecklist(
       isExtensionInstalled: true,
-      needsApproval: false,
       isPhoneConnected: true,
       isProxyRunning: false,
-      installExtension: {}
+      approveExtension: {}
     )
   }
   .padding(14)
