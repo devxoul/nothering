@@ -20,19 +20,23 @@ struct MenuBarPanel: View {
       settings
       Divider()
       HStack {
+        Text("Made with ♥ in Seoul")
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
         Spacer()
         Menu {
-          if controller.isExtensionInstalled {
-            Button("Remove Extension…") { Task { await controller.removeExtension() } }
-          }
+          Text("Nothering \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")")
+          Divider()
+          Link("GitHub", destination: URL(string: "https://github.com/devxoul/nothering")!)
+          Divider()
           Button("Quit Nothering") { NSApplication.shared.terminate(nil) }
             .keyboardShortcut("q")
         } label: {
-          Image(systemName: "ellipsis.circle")
-            .imageScale(.large)
+          Image(systemName: "ellipsis")
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
+        .foregroundStyle(.secondary)
         .fixedSize()
       }
     }
