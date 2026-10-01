@@ -19,8 +19,22 @@ struct MenuBarPanel: View {
       Divider()
       settings
       Divider()
-      Button("Quit Nothering") { NSApplication.shared.terminate(nil) }
-        .keyboardShortcut("q")
+      HStack {
+        Spacer()
+        Menu {
+          if controller.isExtensionInstalled {
+            Button("Remove Extension…") { Task { await controller.removeExtension() } }
+          }
+          Button("Quit Nothering") { NSApplication.shared.terminate(nil) }
+            .keyboardShortcut("q")
+        } label: {
+          Image(systemName: "ellipsis.circle")
+            .imageScale(.large)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+      }
     }
     .padding(14)
     .frame(width: 300)

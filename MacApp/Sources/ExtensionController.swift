@@ -23,6 +23,7 @@ final class ExtensionController: NSObject {
   }
   private var manager: NETransparentProxyManager?
   private var loading: Task<Void, Never>?
+  private var isRemoving = false
 
   override init() {
     super.init()
@@ -35,6 +36,22 @@ final class ExtensionController: NSObject {
   func installExtension() {
     status = "Installing extension…"
     let request = OSSystemExtensionRequest.activationRequest(forExtensionWithIdentifier: Self.extensionIdentifier, queue: .main)
+    request.delegate = self
+    OSSystemExtensionManager.shared.submitRequest(request)
+  }
+
+  /// Turns capture off, deletes both proxy configurations, and uninstalls the system extension.
+  func removeExtension() async {
+    await loading?.value
+    status = "Removing extension…"
+    manager?.connection.stopVPNTunnel()
+    try? await manager?.removeFromPreferences()
+    manager = nil
+    let dnsProxy = NEDNSProxyManager.shared()
+    try? await dnsProxy.loadFromPreferences()
+    try? await dnsProxy.removeFromPreferences()
+    isRemoving = true
+    let request = OSSystemExtensionRequest.deactivationRequest(forExtensionWithIdentifier: Self.extensionIdentifier, queue: .main)
     request.delegate = self
     OSSystemExtensionManager.shared.submitRequest(request)
   }
@@ -144,7 +161,8 @@ extension ExtensionController: OSSystemExtensionRequestDelegate {
 
   nonisolated func request(_ request: OSSystemExtensionRequest, didFinishWithResult result: OSSystemExtensionRequest.Result) {
     Task { @MainActor in
-      isExtensionInstalled = result == .completed
+      isExtensionInstalled = !isRemoving && result == .completed
+      isRemoving = false
       needsApproval = false
       status = "Off"
       refreshStatus()
@@ -153,7 +171,9 @@ extension ExtensionController: OSSystemExtensionRequestDelegate {
 
   nonisolated func request(_ request: OSSystemExtensionRequest, didFailWithError error: Error) {
     Task { @MainActor in
-      isExtensionInstalled = false
+      // A failed removal leaves the extension installed.
+      isExtensionInstalled = isRemoving
+      isRemoving = false
       needsApproval = false
       status = "Error: \(error.localizedDescription)"
     }
