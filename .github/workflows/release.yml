@@ -31,6 +31,8 @@ jobs:
       APP_STORE_CONNECT_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
       APP_STORE_CONNECT_API_KEY_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8_BASE64 }}
       APP_STORE_CONNECT_API_KEY_IS_KEY_CONTENT_BASE64: "true"
+      # Signs the Mac app update in appcast.xml, which Sparkle verifies before installing.
+      SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
 
     steps:
       # Validate before anything is mutated: the value ends up in git and fastlane commands.
@@ -99,5 +101,6 @@ jobs:
           gh release create "$VERSION" \
             "build/fastlane/Nothering-$VERSION.zip" \
             "build/fastlane/nothering-cli-$VERSION.zip" \
+            "build/fastlane/appcast.xml" \
             --title "$VERSION" \
             --generate-notes

@@ -55,9 +55,11 @@ Report the result with the GitHub Release URL (`gh release view X.Y.Z --json url
 1. Validates `x.y.z` and that the tag doesn't exist yet.
 2. `fastlane bump version:X.Y.Z` sets the version in `Project.swift` and commits locally.
 3. `fastlane release` picks one build number (latest TestFlight build + 1) for both apps, then:
-   - builds the Mac app and CLI, signs with Developer ID, notarizes, and zips them to `build/fastlane/`;
+   - builds the Mac app and CLI, signs with Developer ID, notarizes, and zips them to `build/fastlane/`, plus a Sparkle `appcast.xml` for the app;
    - builds the iPhone app and uploads it to TestFlight, waits for processing, and submits it to the external **Beta Testers** group (goes through Beta App Review).
-4. Only after all of that succeeds: pushes the bump commit to `main`, tags `X.Y.Z`, and creates the GitHub Release with `Nothering-X.Y.Z.zip` and `nothering-cli-X.Y.Z.zip` attached.
+4. Only after all of that succeeds: pushes the bump commit to `main`, tags `X.Y.Z`, and creates the GitHub Release with `Nothering-X.Y.Z.zip`, `nothering-cli-X.Y.Z.zip` and `appcast.xml` attached.
+
+The Mac app updates itself with [Sparkle](https://sparkle-project.org): its feed is `releases/latest/download/appcast.xml`, so publishing the GitHub Release is what ships the update.
 
 ### If a release fails
 
@@ -72,6 +74,7 @@ Don't re-run the same version: a TestFlight build may already be uploaded. Find 
 | `APP_STORE_CONNECT_KEY_ID` | App Store Connect API key ID |
 | `APP_STORE_CONNECT_ISSUER_ID` | App Store Connect API issuer ID |
 | `APP_STORE_CONNECT_API_KEY_P8_BASE64` | `base64` of the `.p8` key file |
+| `SPARKLE_PRIVATE_KEY` | Sparkle EdDSA private key (`generate_keys --account app.nothering -x <file>`); its public key is `SUPublicEDKey` in `Project.swift` |
 
 ## Signing
 

@@ -1,11 +1,13 @@
 import ProxyCore
 import ServiceManagement
+import Sparkle
 import SwiftUI
 
 /// The window shown from the menu bar icon: capture switch, setup steps, the iPhone link, and options.
 struct MenuBarPanel: View {
   let controller: ExtensionController
   @Bindable var forwarder: PhoneForwarder
+  let updater: SPUUpdater
   @State private var launchesAtLogin = SMAppService.mainApp.status == .enabled
 
   var body: some View {
@@ -26,6 +28,7 @@ struct MenuBarPanel: View {
         Spacer()
         Menu {
           Text("Nothering \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")")
+          Button("Check for Updates…") { updater.checkForUpdates() }
           Divider()
           Link("GitHub", destination: URL(string: "https://github.com/devxoul/nothering")!)
           Divider()
