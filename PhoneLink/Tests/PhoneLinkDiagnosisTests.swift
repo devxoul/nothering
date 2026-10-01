@@ -70,7 +70,7 @@ import Testing
     let result = PhoneLinkDiagnosis.evaluate(
       preference: .auto,
       usb: .notFound,
-      hotspot: PhoneLinkDiagnosis.hotspot(proxyAnswers: false, isIPhoneHotspot: false)
+      hotspot: PhoneLinkDiagnosis.hotspot(proxyAnswers: false, isIPhoneHotspot: false, isOnExpensiveWiFi: false)
     )
 
     #expect(result.link == .none)
@@ -82,7 +82,19 @@ import Testing
     let result = PhoneLinkDiagnosis.evaluate(
       preference: .auto,
       usb: .notFound,
-      hotspot: PhoneLinkDiagnosis.hotspot(proxyAnswers: false, isIPhoneHotspot: true)
+      hotspot: PhoneLinkDiagnosis.hotspot(proxyAnswers: false, isIPhoneHotspot: true, isOnExpensiveWiFi: false)
+    )
+
+    #expect(result.link == .none)
+    #expect(result.detected == .hotspot)
+    #expect(result.hint == "Open Nothering on your iPhone and tap Start Proxy")
+  }
+
+  @Test func detectsAnIPv6OnlyIPhoneHotspotWhoseProxyIsStopped() {
+    let result = PhoneLinkDiagnosis.evaluate(
+      preference: .auto,
+      usb: .notFound,
+      hotspot: PhoneLinkDiagnosis.hotspot(proxyAnswers: false, isIPhoneHotspot: false, isOnExpensiveWiFi: true)
     )
 
     #expect(result.link == .none)

@@ -15,7 +15,8 @@ public enum Hotspot {
     throw LinkError("no hotspot gateway; is the Mac joined to the iPhone's hotspot?")
   }
 
-  /// Whether the Mac is on an iPhone's Personal Hotspot, which always routes IPv4 through 172.20.10.0/28.
+  /// Whether the Mac is on an iPhone's Personal Hotspot that routes IPv4 through 172.20.10.0/28.
+  /// IPv6-only hotspots (CLAT, 192.0.0.0/29) don't, so callers also check for an expensive Wi-Fi path.
   /// Unlike `gatewayAddress()`, this doesn't take an arbitrary IPv6 router for the phone.
   public static func isIPhoneHotspot() -> Bool {
     gateway(family: "-inet")?.hasPrefix("172.20.10.") == true
