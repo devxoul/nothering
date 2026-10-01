@@ -1,1 +1,3 @@
-First TestFlight build. Start the proxy, connect your Mac by USB or Personal Hotspot, and check that traffic flows through the phone.
+The proxy now shows as a Live Activity on the Lock Screen and Dynamic Island while it runs. Check that it appears when you start the proxy and goes away when you stop it.
+Stopping the proxy now takes a second tap, so it does not get turned off by accident.
+The proxy keeps running more reliably in the background and comes back after the app is relaunched. Leave it running for a while with the screen locked and check the Mac stays connected.
