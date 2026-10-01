@@ -9,6 +9,7 @@ struct SetupChecklist: View {
   var isProxyRunning: Bool
   var proxyHint: String?
   var approveExtension: () -> Void
+  var removeExtension: () -> Void = {}
   @Environment(\.dismiss) private var dismiss
 
   var isComplete: Bool { isExtensionInstalled && isPhoneConnected && isProxyRunning }
@@ -31,7 +32,7 @@ struct SetupChecklist: View {
 
   private var extensionStep: Step {
     if isExtensionInstalled {
-      return Step(title: "Extension approved", status: .done)
+      return Step(title: "Extension approved", status: .done, action: ("Remove Extension…", removeExtension))
     }
     // Closes the panel first; it would otherwise cover System Settings and the guide.
     return Step(
@@ -51,7 +52,8 @@ extension SetupChecklist {
       connectionMethod: [forwarder.link, forwarder.detected].first { $0 != .none }?.rawValue,
       isProxyRunning: forwarder.link != .none,
       proxyHint: forwarder.hint,
-      approveExtension: controller.approveExtension
+      approveExtension: controller.approveExtension,
+      removeExtension: { Task { await controller.removeExtension() } }
     )
   }
 }
@@ -72,8 +74,16 @@ private struct Step: View {
         Spacer(minLength: 8)
         if status == .actionNeeded, let action {
           Button(action.title, action: action.perform).controlSize(.small).buttonStyle(.borderedProminent)
-        } else if status != .done, let action {
-          Button(action.title, action: action.perform).controlSize(.small)
+        } else if let action {
+          Menu {
+            Button(action.title, action: action.perform)
+          } label: {
+            Image(systemName: "ellipsis")
+          }
+          .menuStyle(.borderlessButton)
+          .menuIndicator(.hidden)
+          .foregroundStyle(.secondary)
+          .fixedSize()
         }
       }
       if status != .done, let explanation {
