@@ -75,7 +75,6 @@ Don't re-run the same version: a TestFlight build may already be uploaded. Find 
 | `APP_STORE_CONNECT_ISSUER_ID` | App Store Connect API issuer ID |
 | `APP_STORE_CONNECT_API_KEY_P8_BASE64` | `base64` of the `.p8` key file |
 | `SPARKLE_PRIVATE_KEY` | Sparkle EdDSA private key (`generate_keys --account app.nothering -x <file>`); its public key is `SUPublicEDKey` in `Project.swift` |
-| `BETA_CONTACT_FIRST_NAME`, `BETA_CONTACT_LAST_NAME`, `BETA_CONTACT_EMAIL`, `BETA_CONTACT_PHONE` | Beta App Review contact, required for external TestFlight testing. The email is also the testers' feedback address |
 
 ## Signing
 
