@@ -14,7 +14,7 @@ The version lives in `Project.swift` (`CFBundleShortVersionString`). The build n
 
 ## Release
 
-"Release the next version" means: decide the version, write TestFlight notes, trigger the **Release** workflow, and watch it.
+"Release the next version" means: decide the version, write the release notes, trigger the **Release** workflow, and watch it.
 
 ### 1. Decide the version
 
@@ -30,13 +30,13 @@ The version lives in `Project.swift` (`CFBundleShortVersionString`). The build n
 - If there are no tags yet, the first release is the version already in `Project.swift`.
 - Tags have no `v` prefix (`0.2.0`, not `v0.2.0`).
 
-### 2. Write the TestFlight notes
+### 2. Write the release notes
 
-Rewrite `fastlane/release_notes.txt`, commit it, and **push to `main`** before triggering; the workflow builds from `main`. It becomes TestFlight's "What to Test".
+Rewrite both files, commit them, and **push to `main`** before triggering; the workflow builds from `main`.
 
-- Written for testers: what changed and what to try. Lead with the most important change.
-- Plain text, English, a few short lines. No emoji, no markdown.
-- Nothing user-facing? Say so: "Internal cleanup only. Nothing new to test, just check that the proxy still connects."
+- `fastlane/release_notes.txt` becomes TestFlight's "What to Test". Written for testers: what changed and what to try. Nothing user-facing? Say so: "Internal cleanup only. Nothing new to test, just check that the proxy still connects."
+- `fastlane/metadata/en-US/release_notes.txt` becomes the App Store's "What's New". Written for users: what changed, no testing instructions. Nothing user-facing? "Bug fixes and improvements."
+- Both: plain text, English, a few short lines, most important change first. No emoji, no markdown.
 
 The GitHub Release notes are auto-generated from merged PRs, so don't write those.
 
@@ -58,6 +58,7 @@ Report the result with the GitHub Release URL (`gh release view X.Y.Z --json url
    - builds the Mac app and CLI, signs with Developer ID, notarizes, and zips them to `build/fastlane/`, plus a Sparkle `appcast.xml` for the app;
    - builds the iPhone app and uploads it to TestFlight, waits for processing, and submits it to the external **Beta Testers** group (goes through Beta App Review).
 4. Only after all of that succeeds: pushes the bump commit to `main`, tags `X.Y.Z`, and creates the GitHub Release with `Nothering-X.Y.Z.zip`, `nothering-cli-X.Y.Z.zip` and `appcast.xml` attached.
+5. `fastlane ios submit` uploads the App Store listing from `fastlane/metadata/` and submits the new build for App Store review. A version still waiting for review is pulled and replaced; the approved version is released automatically. If only this step fails, the GitHub Release is already out: fix the cause and run `bundle exec fastlane ios submit` locally instead of releasing a new version.
 
 The Mac app updates itself with [Sparkle](https://sparkle-project.org): its feed is `releases/latest/download/appcast.xml`, so publishing the GitHub Release is what ships the update.
 
@@ -83,7 +84,7 @@ The iPhone app's listing lives in `fastlane/metadata/` and `fastlane/screenshots
 ```bash
 bundle exec fastlane ios metadata                  # upload listing, screenshots, age rating
 bundle exec fastlane ios privacy                   # App Privacy answers; needs an Apple ID login
-bundle exec fastlane ios submit build_number:<n>   # submit a processed TestFlight build for review
+bundle exec fastlane ios submit [build_number:<n>] # submit a TestFlight build (default: latest for the current version) for review
 ```
 
 In the simulator the app serves on port `11081` without pinning to cellular, so screenshots can show real traffic: `curl --socks5-hostname 127.0.0.1:11081 <url>`.

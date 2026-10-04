@@ -104,3 +104,8 @@ jobs:
             "build/fastlane/appcast.xml" \
             --title "$VERSION" \
             --generate-notes
+
+      # Last, so a rejected submission (e.g. App Review's own checks) doesn't hold back the Mac release.
+      # Retry with `bundle exec fastlane ios submit` after fixing the cause.
+      - name: Submit to App Store review
+        run: bundle exec fastlane ios submit

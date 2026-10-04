@@ -73,15 +73,20 @@ platform :ios do
     deliver(api_key: app_store_connect_api_key, app_version: current_version)
   end
 
-  desc "Submit a processed TestFlight build for App Store review: fastlane ios submit build_number:<n>"
+  desc "Upload the listing and submit a TestFlight build for App Store review (default: the current version's latest build)"
   lane :submit do |options|
-    UI.user_error!("Usage: fastlane ios submit build_number:<n>") unless options[:build_number]
+    api_key = app_store_connect_api_key
+    version = current_version
+    build_number = options[:build_number] ||
+      latest_testflight_build_number(api_key: api_key, app_identifier: IOS_APP_ID, version: version)
+    # deliver's own `reject_if_possible` runs after it renames the edit version, which a version in review rejects.
+    cancel_review_submission
     deliver(
-      api_key: app_store_connect_api_key,
-      app_version: current_version,
-      build_number: options[:build_number].to_s,
+      api_key: api_key,
+      app_version: version,
+      build_number: build_number.to_s,
       submit_for_review: true,
-      automatic_release: false
+      automatic_release: true
     )
   end
 
@@ -104,6 +109,18 @@ end
 
 def current_version
   File.read(File.join(ROOT, "Project.swift"))[VERSION_PATTERN, 2]
+end
+
+# Pulls a version still in App Review so the new release can replace it. Needs the API key token set.
+def cancel_review_submission
+  app = Spaceship::ConnectAPI::App.find(IOS_APP_ID)
+  platform = Spaceship::ConnectAPI::Platform::IOS
+  submission = app.get_in_progress_review_submission(platform: platform)
+  return unless submission
+
+  submission.cancel_submission
+  UI.message("Cancelling the App Store review submission in progress...")
+  sleep(15) while app.get_in_progress_review_submission(platform: platform)
 end
 
 # Both apps share one build number, taken from TestFlight so it always increases.
