@@ -69,7 +69,12 @@ final class ProxyController {
 
   func start() async {
     lastError = nil
-    let server = ProxyServer()
+    #if targetEnvironment(simulator)
+      // The simulator has no cellular, and shares the Mac's ports with the menu bar app's forwarder.
+      let server = ProxyServer(configuration: .init(port: 11081, requiredInterfaceType: nil))
+    #else
+      let server = ProxyServer()
+    #endif
     do {
       try await server.start()
       try keeper.start()
