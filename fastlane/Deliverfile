@@ -1,0 +1,10 @@
+# App Store listing for the iPhone app. The binary comes from the Release workflow's TestFlight upload.
+app_identifier("app.nothering.ios")
+platform("ios")
+app_rating_config_path("./fastlane/rating_config.json")
+skip_binary_upload(true)
+overwrite_screenshots(true)
+force(true)
+# Precheck can't read in-app purchases with an API key, and the app has none.
+precheck_include_in_app_purchases(false)
+submission_information({ add_id_info_uses_idfa: false })
