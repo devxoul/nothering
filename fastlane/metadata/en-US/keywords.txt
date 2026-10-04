@@ -1,0 +1,1 @@
+hotspot,tethering,cellular,proxy,socks5,mac,usb,share,internet,network,mobile data,5g,lte,menu bar

@@ -1,0 +1,24 @@
+Nothering puts your Mac online through your iPhone's cellular connection.
+
+The iPhone app runs a small proxy. The free Nothering app for Mac sends your Mac's traffic to it over a USB cable or the iPhone's Personal Hotspot, and the iPhone opens every connection again from its own network stack over cellular.
+
+HOW IT WORKS
+- Tap Start Proxy on your iPhone.
+- Connect your Mac with a USB cable, or join the iPhone's Personal Hotspot.
+- Turn on Nothering in the Mac menu bar. That's it: apps on your Mac work as usual, with no per-app proxy settings.
+
+FEATURES
+- Works over USB or Personal Hotspot, and picks the best link automatically.
+- Carries TCP, UDP and DNS, so browsers, video calls and games all work.
+- Live upload and download speed, connection counts and data totals.
+- A Live Activity on the Lock Screen and in the Dynamic Island shows that sharing is on, and tells you if iOS closed the app.
+- Fails safe: if your iPhone goes away, your Mac goes back to its normal network.
+
+PRIVACY
+Nothering has no accounts, no analytics and no servers of its own. Your traffic goes straight from your iPhone to the sites you visit, and nothing is collected or sent to the developer.
+
+REQUIREMENTS
+- The Nothering app for Mac (macOS 15 or later), free from github.com/devxoul/nothering.
+- A cellular data plan on your iPhone. Data used by your Mac counts toward it.
+
+Nothering is open source under the MIT license.

@@ -67,6 +67,32 @@ platform :ios do
     api_key = app_store_connect_api_key
     build_ios(api_key, options[:build_number] || next_build_number(api_key))
   end
+
+  desc "Upload the App Store listing (metadata, screenshots, age rating) for the current version"
+  lane :metadata do
+    deliver(api_key: app_store_connect_api_key, app_version: current_version)
+  end
+
+  desc "Submit a processed TestFlight build for App Store review: fastlane ios submit build_number:<n>"
+  lane :submit do |options|
+    UI.user_error!("Usage: fastlane ios submit build_number:<n>") unless options[:build_number]
+    deliver(
+      api_key: app_store_connect_api_key,
+      app_version: current_version,
+      build_number: options[:build_number].to_s,
+      submit_for_review: true,
+      automatic_release: false
+    )
+  end
+
+  # App Store Connect API keys can't edit App Privacy, so this one logs in with an Apple ID (FASTLANE_USER).
+  desc "Set the App Privacy answers from app_privacy_details.json"
+  lane :privacy do
+    upload_app_privacy_details_to_app_store(
+      app_identifier: IOS_APP_ID,
+      json_path: File.join(__dir__, "app_privacy_details.json")
+    )
+  end
 end
 
 platform :mac do

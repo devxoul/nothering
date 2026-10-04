@@ -76,6 +76,18 @@ Don't re-run the same version: a TestFlight build may already be uploaded. Find 
 | `APP_STORE_CONNECT_API_KEY_P8_BASE64` | `base64` of the `.p8` key file |
 | `SPARKLE_PRIVATE_KEY` | Sparkle EdDSA private key (`generate_keys --account app.nothering -x <file>`); its public key is `SUPublicEDKey` in `Project.swift` |
 
+## App Store
+
+The iPhone app's listing lives in `fastlane/metadata/` and `fastlane/screenshots/en-US/` (6.9" iPhone 17 Pro Max, 1320x2868), with the age rating in `fastlane/rating_config.json` and the privacy policy in `PRIVACY.md`.
+
+```bash
+bundle exec fastlane ios metadata                  # upload listing, screenshots, age rating
+bundle exec fastlane ios privacy                   # App Privacy answers; needs an Apple ID login
+bundle exec fastlane ios submit build_number:<n>   # submit a processed TestFlight build for review
+```
+
+In the simulator the app serves on port `11081` without pinning to cellular, so screenshots can show real traffic: `curl --socks5-hostname 127.0.0.1:11081 <url>`.
+
 ## Signing
 
 Certificates and profiles live in the private `devxoul/nothering-match` repo, encrypted with `MATCH_PASSWORD`. CI runs match read-only. Creating or renewing them happens locally only; the Developer ID certificate needs the account holder's Apple ID (`MATCH_USERNAME`), not the API key.
