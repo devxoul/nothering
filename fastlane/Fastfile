@@ -95,7 +95,7 @@ platform :ios do
   lane :privacy do
     upload_app_privacy_details_to_app_store(
       app_identifier: IOS_APP_ID,
-      json_path: File.join(__dir__, "app_privacy_details.json")
+      json_path: File.join(ROOT, "fastlane/app_privacy_details.json")
     )
   end
 end
