@@ -1,0 +1,12 @@
+Nothering is the iPhone half of a two-part app. The iPhone app runs a SOCKS5 proxy on port 11080, and the companion Mac app (free, open source, distributed outside the Mac App Store at https://github.com/devxoul/nothering/releases) sends the Mac's traffic to it over USB or Personal Hotspot. The iPhone opens each connection over cellular.
+
+How to test:
+1. On the iPhone, open Nothering and tap Start Proxy. The status changes to Running.
+2. Install the Mac app from the link above, connect the Mac to the iPhone with a USB cable (or join the iPhone's Personal Hotspot), and turn on Nothering from the menu bar icon.
+3. Load a website on the Mac. The iPhone app shows "Mac connected via USB" and the throughput chart moves.
+
+Without a Mac, you can check the proxy from the iPhone side only: after tapping Start Proxy the app shows Running and "Waiting for Mac...".
+
+Background audio: the proxy has to keep accepting connections from the Mac while the iPhone is locked, which is the app's core feature. iOS gives a network proxy no other way to stay running, so the app plays silent audio only while the proxy is on. A Live Activity makes it clear to the user that the proxy is running, and tapping Stop Proxy ends the audio session immediately.
+
+The proxy only accepts connections from the USB link (loopback) and the Personal Hotspot interface, never from Wi-Fi or cellular peers. The app has no accounts and collects no data.
