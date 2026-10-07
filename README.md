@@ -5,7 +5,7 @@
 <h1 align="center">Nothering – is not tethering</h1>
 
 <p align="center">
-  Use your iPhone's cellular connection from your Mac without it looking like tethering.
+  Use your iPhone's cellular connection from your Mac through a small proxy on the phone.
 </p>
 
 <p align="center">
@@ -17,7 +17,7 @@
 
 ## What it does
 
-Regular Personal Hotspot forwards your Mac's packets through the phone, and carriers can tell (and block, throttle, or bill) that traffic. Nothering takes a different route: the iPhone runs a small **SOCKS5 proxy**, and every connection your Mac makes is **re-opened from the iPhone's own network stack** over cellular. To the carrier, it's just the phone talking.
+The iPhone runs a small **SOCKS5 proxy**, and every connection your Mac makes is **re-opened from the iPhone's own network stack** over cellular.
 
 On the Mac, a **transparent proxy system extension** captures app traffic (TCP, UDP and DNS) and sends it to the phone over **USB** or the **Personal Hotspot** link. No per-app proxy settings needed.
 
@@ -26,7 +26,7 @@ On the Mac, a **transparent proxy system extension** captures app traffic (TCP, 
 ```mermaid
 flowchart LR
   M["💻 Mac"] -->|USB or Hotspot| P["📱 iPhone"]
-  P -->|looks like the phone| I(("🌐 Internet"))
+  P -->|cellular| I(("🌐 Internet"))
 ```
 
 | Piece | Role |
@@ -42,7 +42,7 @@ Nothering fails open — your Mac keeps working when the phone isn't around.
 
 - 🔌 **Phone unreachable** → flows and DNS go direct.
 - 🏠 **Local networks** (RFC 1918, link-local, CGNAT, ULA, multicast) are never captured.
-- 🛡️ **Other VPNs / network extensions** are left alone — except Tailscale's TCP (control plane + DERP), so your tailnet keeps working when the carrier blocks WireGuard UDP. Tailnet DNS names resolve normally.
+- 🛡️ **Other VPNs / network extensions** are left alone — except Tailscale's TCP (control plane + DERP), so your tailnet keeps working when the network blocks WireGuard UDP. Tailnet DNS names resolve normally.
 
 ## Getting started
 
