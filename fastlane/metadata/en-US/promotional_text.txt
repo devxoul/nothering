@@ -1,1 +1,1 @@
-Get your Mac online with your iPhone's cellular connection, over a USB cable or Personal Hotspot.
+Run a personal network proxy on your iPhone and connect your Mac to it over a USB cable.

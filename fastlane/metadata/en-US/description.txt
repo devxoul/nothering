@@ -1,24 +1,24 @@
-Nothering puts your Mac online through your iPhone's cellular connection.
+Nothering is a personal network proxy that runs on your iPhone, with a free companion app for your Mac.
 
-The iPhone app runs a small proxy. The free Nothering app for Mac sends your Mac's traffic to it over a USB cable or the iPhone's Personal Hotspot, and the iPhone opens every connection again from its own network stack over cellular.
+Start the proxy on your iPhone, connect your Mac, and the Nothering app for Mac routes your Mac's connections through the proxy. Apps on your Mac work as usual, with no per-app proxy settings.
 
 HOW IT WORKS
 - Tap Start Proxy on your iPhone.
-- Connect your Mac with a USB cable, or join the iPhone's Personal Hotspot.
-- Turn on Nothering in the Mac menu bar. That's it: apps on your Mac work as usual, with no per-app proxy settings.
+- Connect your Mac with a USB cable, or over the iPhone's Personal Hotspot.
+- Turn on Nothering in the Mac menu bar.
 
 FEATURES
 - Works over USB or Personal Hotspot, and picks the best link automatically.
-- Carries TCP, UDP and DNS, so browsers, video calls and games all work.
+- Supports TCP, UDP and DNS.
 - Live upload and download speed, connection counts and data totals.
-- A Live Activity on the Lock Screen and in the Dynamic Island shows that sharing is on, and tells you if iOS closed the app.
-- Fails safe: if your iPhone goes away, your Mac goes back to its normal network.
+- A Live Activity on the Lock Screen and in the Dynamic Island shows when the proxy is running.
+- Fails safe: when your iPhone is disconnected, your Mac goes back to its normal network.
 
 PRIVACY
-Nothering has no accounts, no analytics and no servers of its own. Your traffic goes straight from your iPhone to the sites you visit, and nothing is collected or sent to the developer.
+Nothering has no accounts, no analytics and no servers of its own. Nothing is collected or sent to the developer.
 
 REQUIREMENTS
-- The Nothering app for Mac (macOS 15 or later), free from github.com/devxoul/nothering.
-- A cellular data plan on your iPhone. Data used by your Mac counts toward it.
+- The Nothering app for Mac (macOS 15 or later), available from the support site.
+- Data used by your Mac counts toward your iPhone's data plan.
 
 Nothering is open source under the MIT license.
