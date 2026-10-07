@@ -24,9 +24,9 @@ BETA_CONTACT = {
   contact_first_name: "Suyeol",
   contact_last_name: "Jeon",
   contact_email: "devxoul@gmail.com",
-  contact_phone: "+8210-1234-5678",
+  contact_phone: ENV["APP_REVIEW_PHONE_NUMBER"].to_s.empty? ? nil : ENV["APP_REVIEW_PHONE_NUMBER"],
   demo_account_required: false
-}
+}.compact
 
 VERSION_PATTERN = /("CFBundleShortVersionString": ")([^"]+)(")/
 

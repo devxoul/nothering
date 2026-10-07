@@ -8,3 +8,5 @@ force(true)
 # Precheck can't read in-app purchases with an API key, and the app has none.
 precheck_include_in_app_purchases(false)
 submission_information({ add_id_info_uses_idfa: false, content_rights_contains_third_party_content: false })
+# The review contact's phone number stays out of the public repo. Without it, App Store Connect keeps the current one.
+app_review_information({ phone_number: ENV["APP_REVIEW_PHONE_NUMBER"] }) unless ENV["APP_REVIEW_PHONE_NUMBER"].to_s.empty?
