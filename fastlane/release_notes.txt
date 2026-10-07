@@ -1,1 +1,2 @@
-Internal cleanup only. Nothing new to test, just check that the proxy still connects.
+The app and the Live Activity now say "Proxy running" while the proxy is on.
+Start the proxy, connect your Mac, and check that websites load and the Live Activity shows the new text on the Lock Screen.
