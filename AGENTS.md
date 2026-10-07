@@ -75,6 +75,7 @@ Don't re-run the same version: a TestFlight build may already be uploaded. Find 
 | `APP_STORE_CONNECT_KEY_ID` | App Store Connect API key ID |
 | `APP_STORE_CONNECT_ISSUER_ID` | App Store Connect API issuer ID |
 | `APP_STORE_CONNECT_API_KEY_P8_BASE64` | `base64` of the `.p8` key file |
+| `APP_REVIEW_PHONE_NUMBER` | Phone number for the App Review and Beta App Review contact, e.g. `+82 10-0000-0000` |
 | `SPARKLE_PRIVATE_KEY` | Sparkle EdDSA private key (`generate_keys --account app.nothering -x <file>`); its public key is `SUPublicEDKey` in `Project.swift` |
 
 ## App Store
