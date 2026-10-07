@@ -78,10 +78,10 @@ private struct Status {
     isClosed = context.isStale
     if isClosed {
       title = "Nothering was closed"
-      subtitle = "Tap to reopen and keep sharing cellular"
+      subtitle = "Tap to reopen and keep the proxy running"
       return
     }
-    title = "Sharing cellular"
+    title = "Proxy running"
     switch (context.state.usb, context.state.hotspot) {
     case (true, true): subtitle = "Mac connected via USB and Hotspot"
     case (true, false): subtitle = "Mac connected via USB"
