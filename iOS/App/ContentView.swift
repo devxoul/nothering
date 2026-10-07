@@ -31,7 +31,7 @@ struct ContentView: View {
         } header: {
           Text("Connect from Mac")
         } footer: {
-          Text("Connect your Mac with a USB cable or join this iPhone's Personal Hotspot, then turn on Nothering in the Mac menu bar app. Outbound connections use cellular only.")
+          Text("Connect your Mac with a USB cable or join this iPhone's Personal Hotspot, then turn on Nothering in the Mac menu bar app.")
         }
 
         Section("Traffic") {
@@ -115,7 +115,7 @@ private struct StatusCard: View {
               .foregroundStyle(.secondary)
           }
         } else {
-          Text("Share this iPhone's cellular with your Mac")
+          Text("Run a network proxy for your Mac")
             .font(.subheadline)
             .foregroundStyle(.secondary)
         }
