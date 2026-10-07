@@ -33,6 +33,8 @@ jobs:
       APP_STORE_CONNECT_API_KEY_IS_KEY_CONTENT_BASE64: "true"
       # Signs the Mac app update in appcast.xml, which Sparkle verifies before installing.
       SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+      # App Review and Beta App Review contact phone, kept out of the public repo.
+      APP_REVIEW_PHONE_NUMBER: ${{ secrets.APP_REVIEW_PHONE_NUMBER }}
 
     steps:
       # Validate before anything is mutated: the value ends up in git and fastlane commands.

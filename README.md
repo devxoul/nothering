@@ -80,6 +80,7 @@ Releases go through [fastlane](https://fastlane.tools) with [match](https://docs
 |---|---|
 | `MATCH_GIT_URL`, `MATCH_PASSWORD` | Private certificates repo and its passphrase |
 | `APP_STORE_CONNECT_API_KEY_KEY_ID`, `APP_STORE_CONNECT_API_KEY_ISSUER_ID`, `APP_STORE_CONNECT_API_KEY_KEY_FILEPATH` | App Store Connect API key (`.p8`) |
+| `APP_REVIEW_PHONE_NUMBER` | App Review contact phone. Optional locally: App Store Connect keeps the current number |
 | `SPARKLE_PRIVATE_KEY` | Signs the Mac app's update feed. Optional locally: falls back to the `app.nothering` keychain item from Sparkle's `generate_keys` |
 
 ```sh
