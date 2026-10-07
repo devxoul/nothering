@@ -14,7 +14,7 @@ MAC_EXTENSION_ID = "app.nothering.mac.proxy"
 
 EXTERNAL_TESTER_GROUP = "Beta Testers"
 BETA_APP_DESCRIPTION = <<~TEXT.strip
-  Nothering lets a Mac use the iPhone's cellular connection without it looking like tethering. The iPhone app runs a small proxy, and the Mac app sends its traffic through it over USB or Personal Hotspot.
+  Nothering runs a small network proxy on the iPhone. The companion Mac app sends the Mac's traffic through it over USB or Personal Hotspot.
 
   To test, start the proxy on the iPhone, connect a Mac running the Nothering menu bar app, and check that websites load on the Mac.
 TEXT
