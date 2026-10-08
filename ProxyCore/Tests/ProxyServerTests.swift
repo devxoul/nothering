@@ -69,6 +69,42 @@ private let loopback = NWEndpoint.Host.ipv4(.loopback)
     #expect(stats.bytesDown == 6)
   }
 
+  @Test func streamsEventsToListeningClients() async throws {
+    let (server, proxyPort) = try await startProxy()
+    defer { server.stop() }
+
+    let client = try await socksHandshake(proxyPort: proxyPort)
+    try await client.sendAsync(Data([0x05, ProxyEvent.command, 0x00, 0x01, 0, 0, 0, 0, 0, 0]))
+    #expect(try await client.receiveExactly(10)[1] == 0x00)
+
+    server.send(.terminating)
+    #expect(try await client.receiveExactly(1) == Data([ProxyEvent.terminating.rawValue]))
+    client.cancel()
+  }
+
+  @Test func deliversEventSentRightBeforeStop() async throws {
+    let (server, proxyPort) = try await startProxy()
+    let client = try await socksHandshake(proxyPort: proxyPort)
+    try await client.sendAsync(Data([0x05, ProxyEvent.command, 0x00, 0x01, 0, 0, 0, 0, 0, 0]))
+    #expect(try await client.receiveExactly(10)[1] == 0x00)
+
+    server.send(.stopped)
+    server.stop()
+    #expect(try await client.receiveExactly(1) == Data([ProxyEvent.stopped.rawValue]))
+    client.cancel()
+  }
+
+  @Test func closesEventStreamWhenClientLeaves() async throws {
+    let (server, proxyPort) = try await startProxy()
+    defer { server.stop() }
+
+    let client = try await socksHandshake(proxyPort: proxyPort)
+    try await client.sendAsync(Data([0x05, ProxyEvent.command, 0x00, 0x01, 0, 0, 0, 0, 0, 0]))
+    #expect(try await client.receiveExactly(10)[1] == 0x00)
+    client.cancel()
+    #expect(try await eventually { server.currentStats().activeConnections == 0 })
+  }
+
   @Test func rejectsUnsupportedCommand() async throws {
     let (server, proxyPort) = try await startProxy()
     defer { server.stop() }
