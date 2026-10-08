@@ -52,6 +52,41 @@ import Testing
     #expect(!detector.hasQuit)
   }
 
+  @Test func staysDismissedUntilTheNextQuit() {
+    var detector = PhoneQuitDetector()
+    detector.linkChanged(wasReachable: true, isReachable: false, isPhoneAttached: true)
+    detector.dismiss()
+    detector.linkChanged(wasReachable: false, isReachable: false, isPhoneAttached: true)
+    #expect(!detector.hasQuit)
+
+    detector.linkChanged(wasReachable: false, isReachable: true, isPhoneAttached: true)
+    detector.linkChanged(wasReachable: true, isReachable: false, isPhoneAttached: true)
+    #expect(detector.hasQuit)
+  }
+
+  @Test func ignoresALateLinkLossForADismissedSwipeAway() {
+    var detector = PhoneQuitDetector()
+    detector.handle(.opened)
+    detector.handle(.event(.terminating))
+    detector.handle(.closed)
+    detector.dismiss()
+    detector.linkChanged(wasReachable: true, isReachable: false, isPhoneAttached: true)
+    #expect(!detector.hasQuit)
+
+    detector.linkChanged(wasReachable: false, isReachable: true, isPhoneAttached: true)
+    detector.handle(.opened)
+    detector.handle(.event(.terminating))
+    #expect(detector.hasQuit)
+  }
+
+  @Test func dismissingWithoutAWarningDoesNotHideTheNextQuit() {
+    var detector = PhoneQuitDetector()
+    detector.handle(.opened)
+    detector.dismiss()
+    detector.handle(.event(.terminating))
+    #expect(detector.hasQuit)
+  }
+
   @Test func matchesTheServerEventBytes() {
     #expect(PhoneEvent.stopped.rawValue == ProxyEvent.stopped.rawValue)
     #expect(PhoneEvent.terminating.rawValue == ProxyEvent.terminating.rawValue)

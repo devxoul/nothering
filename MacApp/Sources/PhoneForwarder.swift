@@ -39,6 +39,10 @@ final class PhoneForwarder {
   /// Whether the iPhone's proxy went away without the user stopping it, e.g. its app was swiped
   /// away or killed by iOS. Cleared once the proxy answers again.
   var phoneProxyQuit: Bool { quitDetector.hasQuit }
+
+  func dismissPhoneProxyQuit() {
+    quitDetector.dismiss()
+  }
   var preference = Preference(rawValue: UserDefaults.standard.string(forKey: preferenceKey) ?? "") ?? .auto {
     didSet {
       UserDefaults.standard.set(preference.rawValue, forKey: Self.preferenceKey)

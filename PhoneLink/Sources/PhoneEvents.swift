@@ -70,6 +70,9 @@ public final class PhoneEventListener: @unchecked Sendable {
 public struct PhoneQuitDetector: Sendable {
   public private(set) var hasQuit = false
   private var wasStopped = false
+  /// The user saw the warning for the current run of the phone's proxy, so a late report of the
+  /// same quit (e.g. the link refresh after the stream closed) doesn't raise it again.
+  private var wasDismissed = false
 
   public init() {}
 
@@ -77,12 +80,11 @@ public struct PhoneQuitDetector: Sendable {
     switch update {
     case .opened:
       // A freshly opened stream means a running proxy, even if it restarted between probes.
-      hasQuit = false
-      wasStopped = false
+      startRun()
     case .event(.stopped):
       wasStopped = true
     case .event(.terminating):
-      hasQuit = true
+      raise()
     case .closed:
       break
     }
@@ -90,10 +92,26 @@ public struct PhoneQuitDetector: Sendable {
 
   public mutating func linkChanged(wasReachable: Bool, isReachable: Bool, isPhoneAttached: Bool) {
     if isReachable, !wasReachable {
-      hasQuit = false
-      wasStopped = false
+      startRun()
     } else if wasReachable, !isReachable, !wasStopped, isPhoneAttached {
-      hasQuit = true
+      raise()
     }
+  }
+
+  /// Clears the warning once the user has seen it. The next run that quits raises it again.
+  public mutating func dismiss() {
+    guard hasQuit else { return }
+    hasQuit = false
+    wasDismissed = true
+  }
+
+  private mutating func startRun() {
+    hasQuit = false
+    wasStopped = false
+    wasDismissed = false
+  }
+
+  private mutating func raise() {
+    if !wasDismissed { hasQuit = true }
   }
 }

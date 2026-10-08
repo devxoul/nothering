@@ -45,6 +45,7 @@ struct MenuBarPanel: View {
     }
     .padding(14)
     .frame(width: 300)
+    .onDisappear { forwarder.dismissPhoneProxyQuit() }
   }
 
   private var header: some View {
@@ -70,6 +71,7 @@ struct MenuBarPanel: View {
         Label("Nothering was closed on your iPhone. Open it again to reconnect.", systemImage: "exclamationmark.circle.fill")
           .font(.caption)
           .foregroundStyle(.red)
+          .fixedSize(horizontal: false, vertical: true)
       }
       if !controller.hasTurnedOn {
         Text("macOS will ask twice to add proxies — allow both")
