@@ -36,6 +36,9 @@ final class PhoneForwarder {
   private(set) var hint: String?
   private(set) var error: String?
   private(set) var stats = LocalForwarder.Stats()
+  /// Whether the iPhone's proxy went away without the user stopping it, e.g. its app was swiped
+  /// away or killed by iOS. Cleared once the proxy answers again.
+  var phoneProxyQuit: Bool { quitDetector.hasQuit }
   var preference = Preference(rawValue: UserDefaults.standard.string(forKey: preferenceKey) ?? "") ?? .auto {
     didSet {
       UserDefaults.standard.set(preference.rawValue, forKey: Self.preferenceKey)
@@ -54,6 +57,8 @@ final class PhoneForwarder {
   private var statsTimer: Timer?
   private let route = PhoneRoute()
   private let pathMonitor = NWPathMonitor()
+  private let events = PhoneEventListener()
+  private var quitDetector = PhoneQuitDetector()
 
   func start() {
     route.preference = preference
@@ -91,15 +96,46 @@ final class PhoneForwarder {
     Task.detached {
       let result = route.refresh()
       await MainActor.run {
-        let wasReachable = self.link != .none
+        let previousLink = self.link
+        let wasReachable = previousLink != .none
         let isReachable = result.link != .none
         self.link = result.link
         self.detected = result.detected
         self.hint = result.hint
+        self.trackPhoneProxy(previousLink: previousLink)
         if self.autoTurnOn, wasReachable != isReachable {
           self.onAutoTurnOn?(isReachable)
         }
       }
+    }
+  }
+
+  private func trackPhoneProxy(previousLink: Link) {
+    quitDetector.linkChanged(
+      wasReachable: previousLink != .none,
+      isReachable: link != .none,
+      isPhoneAttached: detected != .none
+    )
+    // Moves the stream off a link that's gone or no longer selected. Its `.closed` refreshes again,
+    // which opens the replacement on the current link.
+    if link != previousLink {
+      events.stop()
+    }
+    guard link != .none else { return }
+    let route = route
+    events.listen(connect: { try route.connect() }) { [weak self] update in
+      // The main queue keeps updates in order, so an old stream's events never land after the
+      // `.opened` of its replacement.
+      DispatchQueue.main.async {
+        MainActor.assumeIsolated { self?.handle(update) }
+      }
+    }
+  }
+
+  private func handle(_ update: PhoneEventListener.Update) {
+    quitDetector.handle(update)
+    if update == .closed {
+      refreshLink()
     }
   }
 }

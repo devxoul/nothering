@@ -47,7 +47,10 @@ final class ProxyController {
 
   init() {
     NotificationCenter.default.addObserver(forName: UIApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
-      MainActor.assumeIsolated { self?.activity.markClosed() }
+      MainActor.assumeIsolated {
+        self?.server?.send(.terminating)
+        self?.activity.markClosed()
+      }
     }
   }
 
@@ -105,6 +108,7 @@ final class ProxyController {
   func stop() {
     statsTimer?.invalidate()
     statsTimer = nil
+    server?.send(.stopped)
     server?.stop()
     server = nil
     keeper.stop()

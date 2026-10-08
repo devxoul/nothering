@@ -104,6 +104,16 @@ public final class ProxyServer {
     queue.sync { stats }
   }
 
+  /// Tells every client listening for events. The write happens before this returns, so the event
+  /// still goes out when the process exits or `stop` closes the connections right after.
+  public func send(_ event: ProxyEvent) {
+    queue.sync {
+      for entry in sessions.values {
+        entry.session.send(event)
+      }
+    }
+  }
+
   private func accept(_ fd: Int32, interface: String?) {
     guard let interface, configuration.isInterfaceAllowed(interface) else {
       logger.notice("rejected client on interface \(interface ?? "unknown", privacy: .public)")
@@ -174,6 +184,7 @@ final class Session {
   private var triedNAT64 = false
   private var finishedDirections = 0
   private var closed = false
+  private var isEventStream = false
 
   init(client: ByteStream, server: ProxyServer) {
     self.client = client
@@ -215,9 +226,15 @@ final class Session {
     read(4) { [self] header in
       guard header[0] == 0x05 else { return close() }
       let command = header[1]
-      guard command == 0x01 || command == DatagramFrame.command else { return reply(0x07) } // command not supported
+      guard [0x01, DatagramFrame.command, ProxyEvent.command].contains(command) else {
+        return reply(0x07) // command not supported
+      }
       let handle = { [self] (host: NWEndpoint.Host, portBytes: Data) in
-        command == 0x01 ? connect(host: host, portBytes: portBytes) : relayDatagrams()
+        switch command {
+        case 0x01: connect(host: host, portBytes: portBytes)
+        case DatagramFrame.command: relayDatagrams()
+        default: streamEvents()
+        }
       }
       switch header[3] {
       case 0x01:
@@ -292,6 +309,22 @@ final class Session {
     reply(0x00)
   }
 
+  /// Accepts an event stream (`ProxyEvent`); the request's address is unused.
+  private func streamEvents() {
+    isEventStream = true
+    reply(0x00)
+  }
+
+  func send(_ event: ProxyEvent) {
+    guard isEventStream, replied, !closed else { return }
+    client.write(Data([event.rawValue])) { _ in }
+  }
+
+  /// The client never sends anything on an event stream, so any read result means it went away.
+  private func closeWhenClientLeaves() {
+    client.read(minimum: 1, maximum: 1024) { [self] _, _, _ in close() }
+  }
+
   static func isNoRoute(_ error: NWError) -> Bool {
     error == .posix(.ENETDOWN) || error == .posix(.ENETUNREACH)
   }
@@ -309,6 +342,7 @@ final class Session {
     let message = Data([0x05, code, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
     client.write(message) { [self] error in
       guard code == 0x00, error == nil else { return close() }
+      if isEventStream { return closeWhenClientLeaves() }
       if let datagramRelay { return datagramRelay.start() }
       guard let upstream else { return close() }
       pump(from: client, to: upstream, isUpstream: true)
