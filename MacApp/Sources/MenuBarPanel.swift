@@ -70,6 +70,7 @@ struct MenuBarPanel: View {
         Label("Nothering was closed on your iPhone. Open it again to reconnect.", systemImage: "exclamationmark.circle.fill")
           .font(.caption)
           .foregroundStyle(.red)
+          .fixedSize(horizontal: false, vertical: true)
       }
       if !controller.hasTurnedOn {
         Text("macOS will ask twice to add proxies — allow both")
