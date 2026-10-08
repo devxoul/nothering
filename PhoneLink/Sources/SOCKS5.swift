@@ -6,6 +6,8 @@ import Foundation
 public enum SOCKS5 {
   /// Nothering's framed-UDP command, `DatagramFrame.command` on the server side.
   private static let datagramCommand: UInt8 = 0x83
+  /// Nothering's event-stream command, `ProxyEvent.command` on the server side.
+  private static let eventCommand: UInt8 = 0x84
 
   /// Asks the proxy on the other end of `fd` to connect to `host:port`. `host` is sent as a
   /// domain name so the phone resolves it; IP literals work the same way.
@@ -26,6 +28,18 @@ public enum SOCKS5 {
   /// proxy predates framed UDP.
   public static func requestDatagramSession(_ fd: Int32) throws {
     try request(fd, command: datagramCommand, address: [0x01, 0, 0, 0, 0, 0, 0])
+  }
+
+  /// Turns `fd` into an event stream; afterwards read events with `readEvent`. Throws when the
+  /// proxy predates events.
+  public static func openEventStream(_ fd: Int32) throws {
+    try greet(fd)
+    try request(fd, command: eventCommand, address: [0x01, 0, 0, 0, 0, 0, 0])
+  }
+
+  /// Blocks until the next event byte (ProxyCore's `ProxyEvent`) arrives.
+  public static func readEvent(_ fd: Int32) throws -> UInt8 {
+    try readExactly(fd, 1)[0]
   }
 
   /// Reads one datagram frame and returns it without its length prefix.
