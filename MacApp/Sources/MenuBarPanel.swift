@@ -45,6 +45,7 @@ struct MenuBarPanel: View {
     }
     .padding(14)
     .frame(width: 300)
+    .onDisappear { forwarder.dismissPhoneProxyQuit() }
   }
 
   private var header: some View {
