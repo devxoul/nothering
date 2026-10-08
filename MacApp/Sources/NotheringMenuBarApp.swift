@@ -30,10 +30,30 @@ struct NotheringMenuBarApp: App {
   }
 
   var body: some Scene {
-    MenuBarExtra("Nothering", image: controller.isRunning ? "MenuBarIcon" : "MenuBarIconOff") {
+    MenuBarExtra {
       MenuBarPanel(controller: controller, forwarder: forwarder, updater: updater.updater)
+    } label: {
+      Image(nsImage: Self.menuBarIcon(isOn: controller.isRunning, showsAlert: forwarder.phoneProxyQuit))
+        .accessibilityLabel("Nothering")
     }
     .menuBarExtraStyle(.window)
+  }
+
+  /// A template image can't hold a red dot, so the alert icon tints the template with the menu bar's
+  /// text color itself, at draw time so it follows light and dark menu bars.
+  private static func menuBarIcon(isOn: Bool, showsAlert: Bool) -> NSImage {
+    let base = NSImage(resource: isOn ? .menuBarIcon : .menuBarIconOff)
+    guard showsAlert else { return base }
+    let image = NSImage(size: base.size, flipped: false) { rect in
+      base.draw(in: rect)
+      NSColor.labelColor.set()
+      rect.fill(using: .sourceAtop)
+      NSColor.systemRed.set()
+      NSBezierPath(ovalIn: NSRect(x: rect.maxX - 6, y: rect.maxY - 6, width: 6, height: 6)).fill()
+      return true
+    }
+    image.isTemplate = false
+    return image
   }
 
   /// macOS only activates system extensions from apps in /Applications, so a build run from elsewhere

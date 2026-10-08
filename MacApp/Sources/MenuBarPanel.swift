@@ -66,6 +66,11 @@ struct MenuBarPanel: View {
       if let error = forwarder.error {
         Text(error).font(.caption).foregroundStyle(.red)
       }
+      if forwarder.phoneProxyQuit {
+        Label("Nothering was closed on your iPhone. Open it again to reconnect.", systemImage: "exclamationmark.circle.fill")
+          .font(.caption)
+          .foregroundStyle(.red)
+      }
       if !controller.hasTurnedOn {
         Text("macOS will ask twice to add proxies — allow both")
           .font(.caption)
