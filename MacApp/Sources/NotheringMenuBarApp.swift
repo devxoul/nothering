@@ -7,10 +7,13 @@ struct NotheringMenuBarApp: App {
   @State private var controller: ExtensionController
   @State private var forwarder: PhoneForwarder
   private let updater: SPUStandardUpdaterController
+  @State private var updateNudge: UpdateNudge
 
   init() {
     Self.relaunchFromApplicationsIfNeeded()
-    updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+    let updateNudge = UpdateNudge()
+    _updateNudge = State(initialValue: updateNudge)
+    updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: updateNudge)
     let controller = ExtensionController()
     let forwarder = PhoneForwarder()
     forwarder.onAutoTurnOn = { [weak controller] isReachable in
@@ -31,7 +34,7 @@ struct NotheringMenuBarApp: App {
 
   var body: some Scene {
     MenuBarExtra {
-      MenuBarPanel(controller: controller, forwarder: forwarder, updater: updater.updater)
+      MenuBarPanel(controller: controller, forwarder: forwarder, updater: updater.updater, updateNudge: updateNudge)
     } label: {
       Image(nsImage: Self.menuBarIcon(isOn: controller.isRunning, showsAlert: forwarder.phoneProxyQuit))
         .accessibilityLabel("Nothering")

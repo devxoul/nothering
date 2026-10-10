@@ -8,6 +8,7 @@ struct MenuBarPanel: View {
   let controller: ExtensionController
   @Bindable var forwarder: PhoneForwarder
   let updater: SPUUpdater
+  let updateNudge: UpdateNudge
   @State private var launchesAtLogin = SMAppService.mainApp.status == .enabled
 
   var body: some View {
@@ -22,9 +23,17 @@ struct MenuBarPanel: View {
       settings
       Divider()
       HStack {
-        Text("Made with ♥ in Seoul")
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
+        if let version = updateNudge.availableVersion {
+          Button { updater.checkForUpdates() } label: {
+            Label("Nothering \(version) is available", systemImage: "arrow.down.circle.fill")
+              .font(.subheadline)
+          }
+          .buttonStyle(.link)
+        } else {
+          Text("Made with ♥ in Seoul")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+        }
         Spacer()
         Menu {
           Text("Nothering \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")")
