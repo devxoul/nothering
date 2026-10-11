@@ -31,6 +31,7 @@ final class SocketStream: ByteStream {
   private var reachedEOF = false
   private var readError: Error?
   private var pendingRead: (minimum: Int, maximum: Int, completion: (Data?, Bool, Error?) -> Void)?
+  private var isFulfillingRead = false
 
   private var pendingWrites: [(data: Data, completion: (Error?) -> Void)] = []
   private var writeOffset = 0
@@ -52,6 +53,9 @@ final class SocketStream: ByteStream {
 
   func read(minimum: Int, maximum: Int, completion: @escaping (Data?, Bool, Error?) -> Void) {
     pendingRead = (minimum, maximum, completion)
+    // Called from a read completion: the loop in `fulfillPendingRead` picks this up, so a reader
+    // chaining small reads over a large buffer doesn't recurse once per read and overflow the stack.
+    guard !isFulfillingRead else { return }
     fulfillPendingRead()
     if pendingRead != nil, isReadSourceSuspended {
       isReadSourceSuspended = false
@@ -105,17 +109,22 @@ final class SocketStream: ByteStream {
   }
 
   private func fulfillPendingRead() {
-    guard let request = pendingRead else { return }
-    if let readError {
-      pendingRead = nil
-      return request.completion(nil, false, readError)
-    }
-    guard readBuffer.count >= request.minimum || reachedEOF else { return }
+    guard !isFulfillingRead else { return }
+    isFulfillingRead = true
+    defer { isFulfillingRead = false }
+    while let request = pendingRead {
+      if let readError {
+        pendingRead = nil
+        request.completion(nil, false, readError)
+        continue
+      }
+      guard readBuffer.count >= request.minimum || reachedEOF else { return }
 
-    let chunk = readBuffer.prefix(request.maximum)
-    readBuffer.removeFirst(chunk.count)
-    pendingRead = nil
-    request.completion(chunk.isEmpty ? nil : Data(chunk), reachedEOF && readBuffer.isEmpty, nil)
+      let chunk = readBuffer.prefix(request.maximum)
+      readBuffer.removeFirst(chunk.count)
+      pendingRead = nil
+      request.completion(chunk.isEmpty ? nil : Data(chunk), reachedEOF && readBuffer.isEmpty, nil)
+    }
   }
 
   // MARK: Writing
