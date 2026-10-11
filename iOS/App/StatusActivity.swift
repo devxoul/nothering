@@ -22,10 +22,26 @@ final class StatusActivity {
     }
     state = .init(usb: false, hotspot: false)
     updatedAt = .now
-    activity = try? Activity.request(
+    let activity = try? Activity.request(
       attributes: ProxyActivityAttributes(startedAt: startedAt),
       content: ActivityContent(state: state, staleDate: .now + Self.staleInterval)
     )
+    self.activity = activity
+    guard let activity else { return }
+    // iOS ends a Live Activity after 8 hours but leaves it on the Lock Screen for up to 4 more, where it
+    // ignores updates, goes stale and reads as closed while the proxy is still running. Remove it instead;
+    // the next time the app becomes active it starts a new one.
+    Task { [weak self] in
+      for await state in activity.activityStateUpdates where state == .ended || state == .dismissed {
+        if state == .ended {
+          await activity.end(nil, dismissalPolicy: .immediate)
+        }
+        if self?.activity?.id == activity.id {
+          self?.activity = nil
+        }
+        return
+      }
+    }
   }
 
   func update(usb: Bool, hotspot: Bool) {
