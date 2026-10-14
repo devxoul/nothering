@@ -5,8 +5,6 @@ import SwiftUI
 struct ContentView: View {
   @State private var controller = ProxyController()
   @Environment(\.scenePhase) private var scenePhase
-  @Environment(\.openURL) private var openURL
-  @AppStorage(TerminationAlert.enabledKey) private var notifiesOnTermination = false
 
   var body: some View {
     NavigationStack {
@@ -34,22 +32,6 @@ struct ContentView: View {
           Text("Connect from Mac")
         } footer: {
           Text("Connect your Mac with a USB cable or join this iPhone's Personal Hotspot, then turn on Nothering in the Mac menu bar app.")
-        }
-
-        Section {
-          Toggle("Notify if Closed", isOn: Binding(
-            get: { notifiesOnTermination },
-            set: { enabled in
-              Task {
-                notifiesOnTermination = await controller.setNotifiesOnTermination(enabled)
-                if enabled, !notifiesOnTermination {
-                  openURL(URL(string: UIApplication.openNotificationSettingsURLString)!)
-                }
-              }
-            }
-          ))
-        } footer: {
-          Text("Get a notification if iOS closes Nothering while the proxy is on, so you can reopen it.")
         }
 
         Section("Traffic") {
@@ -100,6 +82,8 @@ private struct StatusCard: View {
   let controller: ProxyController
   @State private var confirmingStop = false
   @Environment(\.colorScheme) private var colorScheme
+  @Environment(\.openURL) private var openURL
+  @AppStorage(TerminationAlert.enabledKey) private var notifiesOnTermination = false
 
   private static let accent = Color(red: 0.25, green: 0.85, blue: 0.85)
   private static let chainBlue = Color(red: 39 / 255, green: 173 / 255, blue: 249 / 255)
@@ -166,6 +150,27 @@ private struct StatusCard: View {
         guard confirmingStop, (try? await Task.sleep(for: .seconds(3))) != nil else { return }
         confirmingStop = false
       }
+
+      Button {
+        let enabled = !notifiesOnTermination
+        Task {
+          notifiesOnTermination = await controller.setNotifiesOnTermination(enabled)
+          if enabled, !notifiesOnTermination {
+            openURL(URL(string: UIApplication.openNotificationSettingsURLString)!)
+          }
+        }
+      } label: {
+        HStack(spacing: 6) {
+          Image(systemName: notifiesOnTermination ? "bell.fill" : "bell.slash")
+            .contentTransition(.symbolEffect(.replace))
+          Text("Notify if Closed")
+        }
+        .font(.footnote.weight(.medium))
+        .foregroundStyle(notifiesOnTermination ? Color.primary : Color.secondary)
+      }
+      .buttonStyle(PressableStyle())
+      .accessibilityValue(notifiesOnTermination ? "On" : "Off")
+      .accessibilityHint("Get a notification if iOS closes Nothering while the proxy is on.")
     }
     .sensoryFeedback(.impact(weight: .medium), trigger: controller.isRunning)
     .frame(maxWidth: .infinity)
