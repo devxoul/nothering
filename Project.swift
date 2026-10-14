@@ -66,24 +66,11 @@ let project = Project(
         "CFBundleDisplayName": "Nothering",
         "UILaunchScreen": [:],
         "UIBackgroundModes": ["audio"],
-        "NSSupportsLiveActivities": true,
         "ITSAppUsesNonExemptEncryption": false,
       ]) { $1 }),
-      sources: ["iOS/App/**", "iOS/Shared/**"],
+      sources: ["iOS/App/**"],
       resources: ["Shared/AppIcon.icon", "iOS/Resources/**"],
-      dependencies: [.target(name: "ProxyCore"), .target(name: "NotheringiOSWidget")]
-    ),
-    .target(
-      name: "NotheringiOSWidget",
-      destinations: [.iPhone],
-      product: .appExtension,
-      bundleId: "\(bundleIDPrefix).ios.widget",
-      deploymentTargets: .iOS("18.0"),
-      infoPlist: .extendingDefault(with: version.merging([
-        "CFBundleDisplayName": "Nothering",
-        "NSExtension": ["NSExtensionPointIdentifier": "com.apple.widgetkit-extension"],
-      ]) { $1 }),
-      sources: ["iOS/Widget/**", "iOS/Shared/**"]
+      dependencies: [.target(name: "ProxyCore")]
     ),
     .target(
       name: "PhoneLink",

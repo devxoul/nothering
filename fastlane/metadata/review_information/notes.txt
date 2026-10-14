@@ -7,6 +7,6 @@ How to test:
 
 Without a Mac, you can check the iPhone side only: after tapping Start Proxy the app shows Running and "Waiting for Mac...".
 
-Background audio: the Mac keeps using the proxy while the iPhone is locked, so the proxy has to stay running in the background, and iOS offers no background mode for a local network server. To stay running, the app plays a silent audio track (no audible sound) only while the user has the proxy turned on. A Live Activity shows that the proxy is running, and tapping Stop Proxy stops the audio immediately.
+Background audio: the Mac keeps using the proxy while the iPhone is locked, so the proxy has to stay running in the background, and iOS offers no background mode for a local network server. To stay running, the app plays a silent audio track (no audible sound) only while the user has the proxy turned on. Tapping Stop Proxy stops the audio immediately.
 
 The app has no accounts and collects no data.

@@ -11,7 +11,7 @@ FEATURES
 - Works over USB or Personal Hotspot, and picks the best link automatically.
 - Supports TCP, UDP and DNS.
 - Live upload and download speed, connection counts and data totals.
-- A Live Activity on the Lock Screen and in the Dynamic Island shows when the proxy is running.
+- Optional notification if iOS closes the app while the proxy is on.
 - Fails safe: when your iPhone is disconnected, your Mac goes back to its normal network.
 
 PRIVACY

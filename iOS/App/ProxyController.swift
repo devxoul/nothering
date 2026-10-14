@@ -2,6 +2,7 @@ import Foundation
 import Observation
 import ProxyCore
 import UIKit
+import UserNotifications
 
 /// Runs the SOCKS5 server in the app process, kept alive in the background by `BackgroundKeeper`.
 ///
@@ -35,7 +36,7 @@ final class ProxyController {
   private var lastSampledAt = ContinuousClock.now
   private var linkSeenAt: [ProxyServer.Link: ContinuousClock.Instant] = [:]
   private let keeper = BackgroundKeeper()
-  private let activity = StatusActivity()
+  private let terminationAlert = TerminationAlert()
   private var statsTimer: Timer?
 
   /// Whether the user left the proxy on, so a relaunch after iOS terminated the app starts it again.
@@ -49,17 +50,30 @@ final class ProxyController {
     NotificationCenter.default.addObserver(forName: UIApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
       MainActor.assumeIsolated {
         self?.server?.send(.terminating)
-        self?.activity.markClosed()
+        self?.terminationAlert.fireNow()
       }
     }
   }
 
   /// Called when the app becomes active, in case the keeper stopped while the app was suspended.
-  /// Also restarts the Live Activity, which iOS ends after 8 hours and only lets the foreground app start.
   func resumeKeeper() {
-    guard isRunning, let startedAt else { return }
+    guard isRunning else { return }
     keeper.resume()
-    activity.start(startedAt: startedAt)
+  }
+
+  /// Asks for notification permission when turning on, and reports whether it ended up on.
+  func setNotifiesOnTermination(_ enabled: Bool) async -> Bool {
+    var enabled = enabled
+    if enabled {
+      enabled = (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])) ?? false
+    }
+    UserDefaults.standard.set(enabled, forKey: TerminationAlert.enabledKey)
+    if isRunning {
+      terminationAlert.arm()
+    } else {
+      terminationAlert.disarm()
+    }
+    return enabled
   }
 
   func toggle() async {
@@ -102,7 +116,7 @@ final class ProxyController {
     }
     RunLoop.main.add(timer, forMode: .common)
     statsTimer = timer
-    activity.start(startedAt: startedAt)
+    terminationAlert.arm()
   }
 
   func stop() {
@@ -112,7 +126,7 @@ final class ProxyController {
     server?.stop()
     server = nil
     keeper.stop()
-    activity.stop()
+    terminationAlert.disarm()
     startedAt = nil
     isRunning = false
     UserDefaults.standard.set(false, forKey: Self.wasRunningKey)
@@ -121,6 +135,7 @@ final class ProxyController {
   private func refreshStats() {
     guard let server else { return }
     keeper.resume()
+    terminationAlert.refresh()
     let previous = stats
     stats = server.currentStats()
     let now = ContinuousClock.now
@@ -147,6 +162,5 @@ final class ProxyController {
       linkSeenAt[.hotspot] = now
     }
     macLinks = Set(linkSeenAt.filter { now - $0.value < Self.linkTimeout }.keys)
-    activity.update(usb: macLinks.contains(.usb), hotspot: macLinks.contains(.hotspot))
   }
 }

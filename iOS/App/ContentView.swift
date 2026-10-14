@@ -5,6 +5,8 @@ import SwiftUI
 struct ContentView: View {
   @State private var controller = ProxyController()
   @Environment(\.scenePhase) private var scenePhase
+  @Environment(\.openURL) private var openURL
+  @AppStorage(TerminationAlert.enabledKey) private var notifiesOnTermination = false
 
   var body: some View {
     NavigationStack {
@@ -32,6 +34,22 @@ struct ContentView: View {
           Text("Connect from Mac")
         } footer: {
           Text("Connect your Mac with a USB cable or join this iPhone's Personal Hotspot, then turn on Nothering in the Mac menu bar app.")
+        }
+
+        Section {
+          Toggle("Notify if Closed", isOn: Binding(
+            get: { notifiesOnTermination },
+            set: { enabled in
+              Task {
+                notifiesOnTermination = await controller.setNotifiesOnTermination(enabled)
+                if enabled, !notifiesOnTermination {
+                  openURL(URL(string: UIApplication.openNotificationSettingsURLString)!)
+                }
+              }
+            }
+          ))
+        } footer: {
+          Text("Get a notification if iOS closes Nothering while the proxy is on, so you can reopen it.")
         }
 
         Section("Traffic") {
@@ -107,14 +125,7 @@ private struct StatusCard: View {
       VStack(spacing: 4) {
         Text(controller.isRunning ? "Running" : "Stopped")
           .font(.title2.bold())
-        if let startedAt = controller.startedAt {
-          TimelineView(.periodic(from: startedAt, by: 1)) { context in
-            Text(formatUptime(context.date.timeIntervalSince(startedAt)))
-              .font(.subheadline)
-              .monospacedDigit()
-              .foregroundStyle(.secondary)
-          }
-        } else {
+        if !controller.isRunning {
           Text("Run a network proxy for your Mac")
             .font(.subheadline)
             .foregroundStyle(.secondary)
@@ -321,7 +332,3 @@ private let appVersion: String = {
   let build = info?["CFBundleVersion"] as? String ?? "?"
   return "\(version) (\(build))"
 }()
-
-private func formatUptime(_ interval: TimeInterval) -> String {
-  Duration.seconds(Int(interval)).formatted(.time(pattern: .hourMinuteSecond))
-}
