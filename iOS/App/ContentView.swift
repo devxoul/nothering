@@ -107,14 +107,7 @@ private struct StatusCard: View {
       VStack(spacing: 4) {
         Text(controller.isRunning ? "Running" : "Stopped")
           .font(.title2.bold())
-        if let startedAt = controller.startedAt {
-          TimelineView(.periodic(from: startedAt, by: 1)) { context in
-            Text(formatUptime(context.date.timeIntervalSince(startedAt)))
-              .font(.subheadline)
-              .monospacedDigit()
-              .foregroundStyle(.secondary)
-          }
-        } else {
+        if !controller.isRunning {
           Text("Run a network proxy for your Mac")
             .font(.subheadline)
             .foregroundStyle(.secondary)
@@ -321,7 +314,3 @@ private let appVersion: String = {
   let build = info?["CFBundleVersion"] as? String ?? "?"
   return "\(version) (\(build))"
 }()
-
-private func formatUptime(_ interval: TimeInterval) -> String {
-  Duration.seconds(Int(interval)).formatted(.time(pattern: .hourMinuteSecond))
-}
