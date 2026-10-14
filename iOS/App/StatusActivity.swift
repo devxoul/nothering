@@ -7,8 +7,10 @@ import Foundation
 /// keeps refreshing it. Once the app is gone the updates stop, and the widget asks the user to reopen it.
 @MainActor
 final class StatusActivity {
-  private static let refreshInterval: Duration = .seconds(10)
-  private static let staleInterval: TimeInterval = 30
+  // iOS throttles and delays Live Activity updates from a background app, so a short window reads as
+  // closed while the proxy is still running. Leave room for several missed refreshes.
+  private static let refreshInterval: Duration = .seconds(60)
+  private static let staleInterval: TimeInterval = 180
 
   private var activity: Activity<ProxyActivityAttributes>?
   private var state = ProxyActivityAttributes.ContentState(usb: false, hotspot: false)
