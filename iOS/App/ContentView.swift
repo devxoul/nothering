@@ -152,34 +152,42 @@ private struct StatusCard: View {
         confirmingStop = false
       }
 
-      Button {
-        let enabled = !notifiesOnTermination
-        Task {
-          notifiesOnTermination = await controller.setNotifiesOnTermination(enabled)
-          if enabled, !notifiesOnTermination {
-            openURL(URL(string: UIApplication.openNotificationSettingsURLString)!)
+      HStack(spacing: 24) {
+        Button {
+          let enabled = !notifiesOnTermination
+          Task {
+            notifiesOnTermination = await controller.setNotifiesOnTermination(enabled)
+            if enabled, !notifiesOnTermination {
+              openURL(URL(string: UIApplication.openNotificationSettingsURLString)!)
+            }
+          }
+        } label: {
+          HStack(spacing: 6) {
+            Image(systemName: notifiesOnTermination ? "bell.fill" : "bell.slash")
+              .contentTransition(.symbolEffect(.replace))
+            Text("Notify if Closed")
+          }
+          .font(.footnote.weight(.medium))
+          .foregroundStyle(notifiesOnTermination ? Color.primary : Color.secondary)
+          .frame(minHeight: 44)
+          .contentShape(.rect)
+        }
+        .buttonStyle(PressableStyle())
+        .accessibilityValue(notifiesOnTermination ? "On" : "Off")
+        .accessibilityHint("Get a notification if iOS closes Nothering while the proxy is on.")
+
+        if notifiesOnTermination {
+          Button {
+            showingFocusGuide = true
+          } label: {
+            Text("Allow During Focus")
+              .font(.footnote)
+              .frame(minHeight: 44)
+              .contentShape(.rect)
           }
         }
-      } label: {
-        HStack(spacing: 6) {
-          Image(systemName: notifiesOnTermination ? "bell.fill" : "bell.slash")
-            .contentTransition(.symbolEffect(.replace))
-          Text("Notify if Closed")
-        }
-        .font(.footnote.weight(.medium))
-        .foregroundStyle(notifiesOnTermination ? Color.primary : Color.secondary)
       }
-      .buttonStyle(PressableStyle())
-      .accessibilityValue(notifiesOnTermination ? "On" : "Off")
-      .accessibilityHint("Get a notification if iOS closes Nothering while the proxy is on.")
-
-      if notifiesOnTermination {
-        Button("Allow During Focus") {
-          showingFocusGuide = true
-        }
-        .font(.footnote)
-        .padding(.top, -8)
-      }
+      .padding(.top, -8)
     }
     .alert("Get Alerts During Focus", isPresented: $showingFocusGuide) {
       Button("Open Settings") {
