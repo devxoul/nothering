@@ -92,7 +92,7 @@ struct ContentView: View {
         }
         Button("OK", role: .cancel) {}
       } message: {
-        Text("Do Not Disturb and other Focus modes silence this notification. To get it anyway, go to Settings > Focus, choose a Focus, and add Nothering under Allowed Notifications > Apps.")
+        Text("Do Not Disturb and other Focus modes silence this notification. To get it anyway, go back to the main Settings screen, open Focus, choose a Focus, and tap Apps. Add Nothering under Allow Notifications From, or remove it if the Focus uses Silence Notifications From.")
       }
       .task {
         if CommandLine.arguments.contains("--autostart") || controller.shouldRestore, !controller.isRunning {
