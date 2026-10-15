@@ -158,8 +158,6 @@ private struct StatusCard: View {
           notifiesOnTermination = await controller.setNotifiesOnTermination(enabled)
           if enabled, !notifiesOnTermination {
             openURL(URL(string: UIApplication.openNotificationSettingsURLString)!)
-          } else if enabled {
-            showingFocusGuide = true
           }
         }
       } label: {
@@ -174,6 +172,14 @@ private struct StatusCard: View {
       .buttonStyle(PressableStyle())
       .accessibilityValue(notifiesOnTermination ? "On" : "Off")
       .accessibilityHint("Get a notification if iOS closes Nothering while the proxy is on.")
+
+      if notifiesOnTermination {
+        Button("Allow During Focus") {
+          showingFocusGuide = true
+        }
+        .font(.footnote)
+        .padding(.top, -8)
+      }
     }
     .alert("Get Alerts During Focus", isPresented: $showingFocusGuide) {
       Button("Open Settings") {
