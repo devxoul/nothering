@@ -109,11 +109,12 @@ private struct StatusCard: View {
       VStack(spacing: 4) {
         Text(controller.isRunning ? "Running" : "Stopped")
           .font(.title2.bold())
-        if !controller.isRunning {
-          Text("Run a network proxy for your Mac")
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-        }
+        // Hidden instead of removed, so the button below doesn't move when the proxy starts.
+        Text("Run a network proxy for your Mac")
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
+          .opacity(controller.isRunning ? 0 : 1)
+          .accessibilityHidden(controller.isRunning)
       }
 
       MacLinkLabel(links: controller.macLinks)
