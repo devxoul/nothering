@@ -9,33 +9,27 @@ struct ContentView: View {
   @AppStorage(TerminationAlert.enabledKey) private var notifiesOnTermination = false
   @State private var showingFocusGuide = false
 
+  private var notifiesOnTerminationBinding: Binding<Bool> {
+    Binding(
+      get: { notifiesOnTermination },
+      set: { enabled in
+        Task {
+          notifiesOnTermination = await controller.setNotifiesOnTermination(enabled)
+          if enabled, !notifiesOnTermination {
+            openURL(URL(string: UIApplication.openNotificationSettingsURLString)!)
+          }
+        }
+      }
+    )
+  }
+
   var body: some View {
     NavigationStack {
       List {
         Section {
-          StatusCard(controller: controller)
+          StatusCard(controller: controller, notifiesOnTermination: notifiesOnTerminationBinding)
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
-        }
-
-        Section {
-          Toggle("Notify if Closed", isOn: Binding(
-            get: { notifiesOnTermination },
-            set: { enabled in
-              Task {
-                notifiesOnTermination = await controller.setNotifiesOnTermination(enabled)
-                if enabled, !notifiesOnTermination {
-                  openURL(URL(string: UIApplication.openNotificationSettingsURLString)!)
-                }
-              }
-            }
-          ))
-        } footer: {
-          if notifiesOnTermination {
-            Text("Silenced during Focus. [Allow During Focus…](nothering://focus-guide)")
-          } else {
-            Text("Get a notification if iOS closes Nothering while the proxy is on.")
-          }
         }
 
         if let error = controller.lastError {
@@ -116,6 +110,7 @@ struct ContentView: View {
 
 private struct StatusCard: View {
   let controller: ProxyController
+  @Binding var notifiesOnTermination: Bool
   @State private var confirmingStop = false
   @Environment(\.colorScheme) private var colorScheme
 
@@ -183,6 +178,30 @@ private struct StatusCard: View {
       .task(id: confirmingStop) {
         guard confirmingStop, (try? await Task.sleep(for: .seconds(3))) != nil else { return }
         confirmingStop = false
+      }
+
+      VStack(spacing: 8) {
+        Button {
+          notifiesOnTermination.toggle()
+        } label: {
+          HStack(spacing: 6) {
+            Image(systemName: notifiesOnTermination ? "bell.fill" : "bell.slash")
+              .contentTransition(.symbolEffect(.replace))
+            Text("Notify if Closed")
+          }
+          .font(.footnote.weight(.medium))
+          .foregroundStyle(notifiesOnTermination ? Color.primary : Color.secondary)
+          .frame(minHeight: 44)
+          .contentShape(.rect)
+        }
+        .buttonStyle(PressableStyle())
+        .accessibilityValue(notifiesOnTermination ? "On" : "Off")
+
+        if notifiesOnTermination {
+          Text("Silenced during Focus. [Allow During Focus…](nothering://focus-guide)")
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+        }
       }
     }
     .sensoryFeedback(.impact(weight: .medium), trigger: controller.isRunning)
