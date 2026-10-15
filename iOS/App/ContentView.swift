@@ -86,7 +86,7 @@ struct ContentView: View {
         showingFocusGuide = true
         return .handled
       })
-      .alert("Get Alerts During Focus", isPresented: $showingFocusGuide) {
+      .alert("Get alerts during Focus", isPresented: $showingFocusGuide) {
         Button("Open Settings") {
           openURL(URL(string: UIApplication.openSettingsURLString)!)
         }
@@ -180,14 +180,14 @@ private struct StatusCard: View {
         confirmingStop = false
       }
 
-      VStack(spacing: 8) {
+      VStack(spacing: -10) {
         Button {
           notifiesOnTermination.toggle()
         } label: {
           HStack(spacing: 6) {
             Image(systemName: notifiesOnTermination ? "bell.fill" : "bell.slash")
               .contentTransition(.symbolEffect(.replace))
-            Text("Notify if Closed")
+            Text("Notify if closed")
           }
           .font(.footnote.weight(.medium))
           .foregroundStyle(notifiesOnTermination ? Color.primary : Color.secondary)
@@ -198,7 +198,7 @@ private struct StatusCard: View {
         .accessibilityValue(notifiesOnTermination ? "On" : "Off")
 
         if notifiesOnTermination {
-          Text("Silenced during Focus. [Allow During Focus…](nothering://focus-guide)")
+          Text("Silenced during Focus. [Allow during Focus…](nothering://focus-guide)")
             .font(.footnote)
             .foregroundStyle(.secondary)
         }
