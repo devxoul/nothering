@@ -5,6 +5,9 @@ import SwiftUI
 struct ContentView: View {
   @State private var controller = ProxyController()
   @Environment(\.scenePhase) private var scenePhase
+  @Environment(\.openURL) private var openURL
+  @AppStorage(TerminationAlert.enabledKey) private var notifiesOnTermination = false
+  @State private var showingFocusGuide = false
 
   var body: some View {
     NavigationStack {
@@ -13,6 +16,26 @@ struct ContentView: View {
           StatusCard(controller: controller)
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
+        }
+
+        Section {
+          Toggle("Notify if Closed", isOn: Binding(
+            get: { notifiesOnTermination },
+            set: { enabled in
+              Task {
+                notifiesOnTermination = await controller.setNotifiesOnTermination(enabled)
+                if enabled, !notifiesOnTermination {
+                  openURL(URL(string: UIApplication.openNotificationSettingsURLString)!)
+                }
+              }
+            }
+          ))
+        } footer: {
+          if notifiesOnTermination {
+            Text("Silenced during Focus. [Allow During Focus…](nothering://focus-guide)")
+          } else {
+            Text("Get a notification if iOS closes Nothering while the proxy is on.")
+          }
         }
 
         if let error = controller.lastError {
@@ -64,6 +87,19 @@ struct ContentView: View {
         }
       }
       .navigationTitle("Nothering")
+      .environment(\.openURL, OpenURLAction { url in
+        guard url.scheme == "nothering" else { return .systemAction }
+        showingFocusGuide = true
+        return .handled
+      })
+      .alert("Get Alerts During Focus", isPresented: $showingFocusGuide) {
+        Button("Open Settings") {
+          openURL(URL(string: UIApplication.openSettingsURLString)!)
+        }
+        Button("OK", role: .cancel) {}
+      } message: {
+        Text("Do Not Disturb and other Focus modes silence this notification. To get it anyway, go to Settings > Focus, choose a Focus, and add Nothering under Allowed Notifications > Apps.")
+      }
       .task {
         if CommandLine.arguments.contains("--autostart") || controller.shouldRestore, !controller.isRunning {
           await controller.start()
@@ -82,9 +118,6 @@ private struct StatusCard: View {
   let controller: ProxyController
   @State private var confirmingStop = false
   @Environment(\.colorScheme) private var colorScheme
-  @Environment(\.openURL) private var openURL
-  @AppStorage(TerminationAlert.enabledKey) private var notifiesOnTermination = false
-  @State private var showingFocusGuide = false
 
   private static let accent = Color(red: 0.25, green: 0.85, blue: 0.85)
   private static let chainBlue = Color(red: 39 / 255, green: 173 / 255, blue: 249 / 255)
@@ -151,51 +184,6 @@ private struct StatusCard: View {
         guard confirmingStop, (try? await Task.sleep(for: .seconds(3))) != nil else { return }
         confirmingStop = false
       }
-
-      HStack(spacing: 24) {
-        Button {
-          let enabled = !notifiesOnTermination
-          Task {
-            notifiesOnTermination = await controller.setNotifiesOnTermination(enabled)
-            if enabled, !notifiesOnTermination {
-              openURL(URL(string: UIApplication.openNotificationSettingsURLString)!)
-            }
-          }
-        } label: {
-          HStack(spacing: 6) {
-            Image(systemName: notifiesOnTermination ? "bell.fill" : "bell.slash")
-              .contentTransition(.symbolEffect(.replace))
-            Text("Notify if Closed")
-          }
-          .font(.footnote.weight(.medium))
-          .foregroundStyle(notifiesOnTermination ? Color.primary : Color.secondary)
-          .frame(minHeight: 44)
-          .contentShape(.rect)
-        }
-        .buttonStyle(PressableStyle())
-        .accessibilityValue(notifiesOnTermination ? "On" : "Off")
-        .accessibilityHint("Get a notification if iOS closes Nothering while the proxy is on.")
-
-        if notifiesOnTermination {
-          Button {
-            showingFocusGuide = true
-          } label: {
-            Text("Allow During Focus")
-              .font(.footnote)
-              .frame(minHeight: 44)
-              .contentShape(.rect)
-          }
-        }
-      }
-      .padding(.top, -8)
-    }
-    .alert("Get Alerts During Focus", isPresented: $showingFocusGuide) {
-      Button("Open Settings") {
-        openURL(URL(string: UIApplication.openSettingsURLString)!)
-      }
-      Button("OK", role: .cancel) {}
-    } message: {
-      Text("Do Not Disturb and other Focus modes silence this notification. To get it anyway, go to Settings > Focus, choose a Focus, and add Nothering under Allowed Notifications > Apps.")
     }
     .sensoryFeedback(.impact(weight: .medium), trigger: controller.isRunning)
     .frame(maxWidth: .infinity)
