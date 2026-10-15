@@ -84,6 +84,7 @@ private struct StatusCard: View {
   @Environment(\.colorScheme) private var colorScheme
   @Environment(\.openURL) private var openURL
   @AppStorage(TerminationAlert.enabledKey) private var notifiesOnTermination = false
+  @State private var showingFocusGuide = false
 
   private static let accent = Color(red: 0.25, green: 0.85, blue: 0.85)
   private static let chainBlue = Color(red: 39 / 255, green: 173 / 255, blue: 249 / 255)
@@ -157,6 +158,8 @@ private struct StatusCard: View {
           notifiesOnTermination = await controller.setNotifiesOnTermination(enabled)
           if enabled, !notifiesOnTermination {
             openURL(URL(string: UIApplication.openNotificationSettingsURLString)!)
+          } else if enabled {
+            showingFocusGuide = true
           }
         }
       } label: {
@@ -171,6 +174,14 @@ private struct StatusCard: View {
       .buttonStyle(PressableStyle())
       .accessibilityValue(notifiesOnTermination ? "On" : "Off")
       .accessibilityHint("Get a notification if iOS closes Nothering while the proxy is on.")
+    }
+    .alert("Get Alerts During Focus", isPresented: $showingFocusGuide) {
+      Button("Open Settings") {
+        openURL(URL(string: UIApplication.openSettingsURLString)!)
+      }
+      Button("OK", role: .cancel) {}
+    } message: {
+      Text("Do Not Disturb and other Focus modes silence this notification. To get it anyway, go to Settings > Focus, choose a Focus, and add Nothering under Allowed Notifications > Apps.")
     }
     .sensoryFeedback(.impact(weight: .medium), trigger: controller.isRunning)
     .frame(maxWidth: .infinity)
