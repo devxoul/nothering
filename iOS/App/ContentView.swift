@@ -88,11 +88,15 @@ struct ContentView: View {
       })
       .alert("Get alerts during Focus", isPresented: $showingFocusGuide) {
         Button("Open Settings") {
-          openURL(URL(string: UIApplication.openSettingsURLString)!)
+          openURL(URL(string: "App-prefs:FOCUS")!) { accepted in
+            if !accepted {
+              openURL(URL(string: UIApplication.openSettingsURLString)!)
+            }
+          }
         }
         Button("OK", role: .cancel) {}
       } message: {
-        Text("Do Not Disturb and other Focus modes silence this notification. To get it anyway, go back to the main Settings screen, open Focus, choose a Focus, and tap Apps. Add Nothering under Allow Notifications From, or remove it if the Focus uses Silence Notifications From.")
+        Text("Do Not Disturb and other Focus modes silence this notification. To get it anyway, open Focus in Settings, choose a Focus, and tap Apps. Add Nothering under Allow Notifications From, or remove it if the Focus uses Silence Notifications From.")
       }
       .task {
         if CommandLine.arguments.contains("--autostart") || controller.shouldRestore, !controller.isRunning {
