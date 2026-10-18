@@ -153,14 +153,20 @@ final class ProxyController {
     refreshMacLinks(previous: previous, now: now)
   }
 
-  /// Also counts connections opened since the last refresh: hotspot probes close well within a second.
+  /// Counts only connections opened since the last refresh, not open ones: a Mac that vanished without
+  /// a FIN leaves its event stream open forever, while a live Mac opens a probe every 10 seconds.
   private func refreshMacLinks(previous: ProxyServer.Stats, now: ContinuousClock.Instant) {
-    if stats.activeUSBConnections > 0 || stats.totalUSBConnections > previous.totalUSBConnections {
+    if stats.totalUSBConnections > previous.totalUSBConnections {
       linkSeenAt[.usb] = now
     }
-    if stats.activeHotspotConnections > 0 || stats.totalHotspotConnections > previous.totalHotspotConnections {
+    if stats.totalHotspotConnections > previous.totalHotspotConnections {
       linkSeenAt[.hotspot] = now
     }
+    let hadLinks = !macLinks.isEmpty
     macLinks = Set(linkSeenAt.filter { now - $0.value < Self.linkTimeout }.keys)
+    // Keeping the silent audio running with no client drains the battery, so turn off once the last Mac leaves.
+    if hadLinks, macLinks.isEmpty {
+      stop()
+    }
   }
 }
