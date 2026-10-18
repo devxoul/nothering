@@ -161,6 +161,11 @@ final class ProxyController {
     if stats.activeHotspotConnections > 0 || stats.totalHotspotConnections > previous.totalHotspotConnections {
       linkSeenAt[.hotspot] = now
     }
+    let hadLinks = !macLinks.isEmpty
     macLinks = Set(linkSeenAt.filter { now - $0.value < Self.linkTimeout }.keys)
+    // Keeping the silent audio running with no client drains the battery, so turn off once the last Mac leaves.
+    if hadLinks, macLinks.isEmpty {
+      stop()
+    }
   }
 }
