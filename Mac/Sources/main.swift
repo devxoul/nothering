@@ -41,7 +41,6 @@ func fail(_ message: String) -> Never {
 
 let remotePort: UInt16 = 11080
 let connectUpstream: () throws -> Int32
-var keepaliveTarget: String?
 
 if via == "usb" || (via == "auto" && host == nil), let deviceID = try? USBMux.firstUSBDeviceID() {
   via = "usb"
@@ -56,7 +55,6 @@ if via == "usb" || (via == "auto" && host == nil), let deviceID = try? USBMux.fi
   } catch {
     fail(error.localizedDescription)
   }
-  keepaliveTarget = phone
   connectUpstream = { try TCP.connect(host: phone, port: remotePort) }
 }
 
@@ -100,20 +98,17 @@ for signalNumber in [SIGINT, SIGTERM, SIGHUP] {
   signalSources.append(source)
 }
 
-// iOS drops idle hotspot clients while the phone is locked; periodic connects keep the link busy.
-var keepalive: DispatchSourceTimer?
-if let keepaliveTarget {
-  let timer = DispatchSource.makeTimerSource(queue: .global())
-  timer.schedule(deadline: .now() + 10, repeating: 10)
-  timer.setEventHandler {
-    do {
-      Darwin.close(try TCP.connect(host: keepaliveTarget, port: remotePort))
-    } catch {
-      FileHandle.standardError.write(Data("nothering: keepalive failed: \(error.localizedDescription)\n".utf8))
-    }
+// iOS drops idle hotspot clients while the phone is locked, and the phone's app stops its proxy
+// once no client has connected for a while; periodic connects keep both alive.
+let keepalive = DispatchSource.makeTimerSource(queue: .global())
+keepalive.schedule(deadline: .now() + 10, repeating: 10)
+keepalive.setEventHandler {
+  do {
+    Darwin.close(try connectUpstream())
+  } catch {
+    FileHandle.standardError.write(Data("nothering: keepalive failed: \(error.localizedDescription)\n".utf8))
   }
-  timer.resume()
-  keepalive = timer
 }
+keepalive.resume()
 
 dispatchMain()
