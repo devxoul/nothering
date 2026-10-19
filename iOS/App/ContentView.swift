@@ -44,6 +44,17 @@ struct ContentView: View {
         }
 
         Section {
+          UsageView(usage: controller.usage)
+          LabeledContent("Today", value: formatBytes(controller.usage.today()))
+          LabeledContent("This month", value: formatBytes(controller.usage.thisMonth()))
+          LabeledContent("All time", value: formatBytes(controller.usage.allTime))
+        } header: {
+          Text("Usage")
+        } footer: {
+          Text("Carriers count this traffic as the iPhone's own data, not Personal Hotspot data. Usage stays on this iPhone.")
+        }
+
+        Section {
           LabeledContent("SOCKS5 port", value: "11080")
         } header: {
           Text("Connect from Mac")
@@ -338,6 +349,44 @@ private struct ThroughputView: View {
     let last = samples.last?.id ?? 0
     let first = max(0, last - ProxyController.sampleWindow + 1)
     return first...max(first + ProxyController.sampleWindow - 1, last)
+  }
+}
+
+private struct UsageView: View {
+  let usage: UsageLog
+
+  private static let dayCount = 30
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      VStack(alignment: .leading, spacing: 2) {
+        Text("Hotspot data saved")
+          .font(.caption.weight(.medium))
+          .foregroundStyle(.green)
+        Text(formatBytes(usage.allTime))
+          .font(.title2.bold())
+          .monospacedDigit()
+      }
+
+      Chart(usage.recentDays(Self.dayCount)) { day in
+        BarMark(x: .value("Day", day.id), y: .value("Bytes", Double(day.bytes)))
+          .foregroundStyle(Color.green.gradient)
+      }
+      .chartXAxis(.hidden)
+      .chartYAxis {
+        AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { value in
+          AxisGridLine()
+          AxisValueLabel {
+            if let bytes = value.as(Double.self) {
+              Text(formatBytes(UInt64(bytes)))
+            }
+          }
+        }
+      }
+      .frame(height: 80)
+      .accessibilityLabel("Usage over the last \(Self.dayCount) days")
+    }
+    .padding(.vertical, 8)
   }
 }
 
