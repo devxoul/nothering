@@ -29,11 +29,13 @@ public struct UsageLog: Codable, Equatable, Sendable {
     allTimeUp &+= up
     allTimeDown &+= down
     let id = Self.id(for: date, calendar: calendar)
-    if days.last?.id == id {
-      days[days.count - 1].bytesUp &+= up
-      days[days.count - 1].bytesDown &+= down
+    // A time zone change or clock correction can revisit an earlier day, so match any entry.
+    if let index = days.lastIndex(where: { $0.id == id }) {
+      days[index].bytesUp &+= up
+      days[index].bytesDown &+= down
     } else {
-      days.append(Day(id: id, bytesUp: up, bytesDown: down))
+      let index = days.firstIndex { $0.id > id } ?? days.endIndex
+      days.insert(Day(id: id, bytesUp: up, bytesDown: down), at: index)
       if days.count > Self.retention {
         days.removeFirst(days.count - Self.retention)
       }

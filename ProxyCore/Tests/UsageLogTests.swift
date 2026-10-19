@@ -26,6 +26,20 @@ import Testing
     #expect(log.allTime == 168)
   }
 
+  @Test func mergesIntoAnEarlierDayWhenTheClockGoesBack() {
+    var log = UsageLog()
+    log.record(up: 0, down: 100, at: date(10, 19), calendar: calendar)
+    log.record(up: 0, down: 200, at: date(10, 20), calendar: calendar)
+    log.record(up: 0, down: 300, at: date(10, 19), calendar: calendar)
+    log.record(up: 0, down: 50, at: date(10, 18), calendar: calendar)
+
+    #expect(log.days.map(\.id) == ["2026-10-18", "2026-10-19", "2026-10-20"])
+    #expect(log.today(date(10, 19), calendar: calendar) == 400)
+    #expect(log.recentDays(3, until: date(10, 20), calendar: calendar).map(\.bytes) == [50, 400, 200])
+    #expect(log.thisMonth(date(10, 20), calendar: calendar) == 650)
+    #expect(log.allTime == 650)
+  }
+
   @Test func sumsThisMonthOnly() {
     var log = UsageLog()
     log.record(up: 0, down: 7, at: date(9, 30), calendar: calendar)
