@@ -19,6 +19,8 @@ final class ProxyController {
   private(set) var samples: [ThroughputSample] = []
   /// Links the Mac had a connection on within the last `linkTimeout`.
   private(set) var macLinks: Set<ProxyServer.Link> = []
+  /// Lifetime traffic, kept across launches.
+  private(set) var usage = ProxyController.loadUsage()
 
   struct ThroughputSample: Identifiable {
     let id: Int
@@ -41,6 +43,21 @@ final class ProxyController {
 
   /// Whether the user left the proxy on, so a relaunch after iOS terminated the app starts it again.
   private static let wasRunningKey = "wasRunning"
+  private static let usageKey = "usageLog"
+  /// Saving every tick would rewrite defaults each second; a crash loses at most this many seconds.
+  private static let usageSaveInterval = 10
+  private var unsavedUsageTicks = 0
+
+  private static func loadUsage() -> UsageLog {
+    guard let data = UserDefaults.standard.data(forKey: usageKey) else { return UsageLog() }
+    return (try? JSONDecoder().decode(UsageLog.self, from: data)) ?? UsageLog()
+  }
+
+  private func saveUsage() {
+    unsavedUsageTicks = 0
+    guard let data = try? JSONEncoder().encode(usage) else { return }
+    UserDefaults.standard.set(data, forKey: Self.usageKey)
+  }
 
   var shouldRestore: Bool {
     UserDefaults.standard.bool(forKey: Self.wasRunningKey)
@@ -50,6 +67,8 @@ final class ProxyController {
     NotificationCenter.default.addObserver(forName: UIApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
       MainActor.assumeIsolated {
         self?.server?.send(.terminating)
+        self?.recordUsage()
+        self?.saveUsage()
         self?.terminationAlert.fireNow()
       }
     }
@@ -120,6 +139,8 @@ final class ProxyController {
   }
 
   func stop() {
+    recordUsage()
+    saveUsage()
     statsTimer?.invalidate()
     statsTimer = nil
     server?.send(.stopped)
@@ -138,6 +159,11 @@ final class ProxyController {
     terminationAlert.refresh()
     let previous = stats
     stats = server.currentStats()
+    usage.record(up: stats.bytesUp &- previous.bytesUp, down: stats.bytesDown &- previous.bytesDown)
+    unsavedUsageTicks += 1
+    if unsavedUsageTicks >= Self.usageSaveInterval {
+      saveUsage()
+    }
     let now = ContinuousClock.now
     let elapsed = max((now - lastSampledAt) / .seconds(1), 0.001)
     lastSampledAt = now
@@ -151,6 +177,14 @@ final class ProxyController {
       samples.removeFirst(samples.count - Self.sampleWindow)
     }
     refreshMacLinks(previous: previous, now: now)
+  }
+
+  /// Adds traffic since the last refresh, so stopping doesn't drop the final second.
+  private func recordUsage() {
+    guard let server else { return }
+    let latest = server.currentStats()
+    usage.record(up: latest.bytesUp &- stats.bytesUp, down: latest.bytesDown &- stats.bytesDown)
+    stats = latest
   }
 
   /// Counts only connections opened since the last refresh, not open ones: a Mac that vanished without
