@@ -1,2 +1,5 @@
-The app and the Live Activity now say "Proxy running" while the proxy is on.
-Start the proxy, connect your Mac, and check that websites load and the Live Activity shows the new text on the Lock Screen.
+The app now shows how much hotspot data it saved each day.
+The Live Activity is gone. Turn on the bell under the Start button to get a notification if the app closes while the proxy is on, and use the Focus guide to let it through Focus.
+The proxy now stops when the last Mac disconnects.
+Start the proxy, connect your Mac, browse a bit, then check the daily usage. Close the app with the bell on and check that the notification arrives.
+On the Mac, quit the iPhone app while connected and check the red dot in the menu bar.

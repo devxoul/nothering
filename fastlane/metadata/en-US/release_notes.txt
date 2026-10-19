@@ -1,1 +1,3 @@
-Nothering is now on the App Store.
+See how much hotspot data Nothering saved each day.
+Get notified if the app closes while the proxy is on, with a guide for allowing it during Focus.
+The proxy now stops on its own when your Mac disconnects.
