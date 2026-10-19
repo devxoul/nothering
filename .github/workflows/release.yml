@@ -6,6 +6,10 @@ on:
       version:
         description: "Version (x.y.z)"
         required: true
+      submit_for_review:
+        description: "Submit to App Store review (uncheck while a previous version is still in review)"
+        type: boolean
+        default: true
 
 # One release at a time, never cancelled: the TestFlight upload can't be undone,
 # and the tag is only created after it succeeds.
@@ -110,4 +114,5 @@ jobs:
       # Last, so a rejected submission (e.g. App Review's own checks) doesn't hold back the Mac release.
       # Retry with `bundle exec fastlane ios submit` after fixing the cause.
       - name: Submit to App Store review
+        if: inputs.submit_for_review
         run: bundle exec fastlane ios submit

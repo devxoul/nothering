@@ -44,6 +44,8 @@ The GitHub Release notes are auto-generated from merged PRs, so don't write thos
 
 ```bash
 gh workflow run release.yml -f version=X.Y.Z
+# TestFlight only, no App Store review submission:
+# gh workflow run release.yml -f version=X.Y.Z -f submit_for_review=false
 sleep 5
 gh run watch "$(gh run list --workflow release.yml --limit 1 --json databaseId -q '.[0].databaseId')" --exit-status
 ```
@@ -58,7 +60,7 @@ Report the result with the GitHub Release URL (`gh release view X.Y.Z --json url
    - builds the Mac app and CLI, signs with Developer ID, notarizes, and zips them to `build/fastlane/`, plus a Sparkle `appcast.xml` for the app;
    - builds the iPhone app and uploads it to TestFlight, waits for processing, and submits it to the external **Beta Testers** group (goes through Beta App Review).
 4. Only after all of that succeeds: pushes the bump commit to `main`, tags `X.Y.Z`, and creates the GitHub Release with `Nothering-X.Y.Z.zip`, `nothering-cli-X.Y.Z.zip` and `appcast.xml` attached.
-5. `fastlane ios submit` uploads the App Store listing from `fastlane/metadata/` and submits the new build for App Store review. A version still waiting for review is pulled and replaced; the approved version is released automatically. If only this step fails, the GitHub Release is already out: fix the cause and run `bundle exec fastlane ios submit` locally instead of releasing a new version.
+5. `fastlane ios submit` uploads the App Store listing from `fastlane/metadata/` and submits the new build for App Store review. A version still waiting for review is pulled and replaced; the approved version is released automatically. Skipped when the workflow runs with `submit_for_review=false`. If only this step fails, the GitHub Release is already out: fix the cause and run `bundle exec fastlane ios submit` locally instead of releasing a new version.
 
 The Mac app updates itself with [Sparkle](https://sparkle-project.org): its feed is `releases/latest/download/appcast.xml`, so publishing the GitHub Release is what ships the update.
 
