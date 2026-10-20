@@ -21,6 +21,8 @@ final class ProxyController {
   private(set) var macLinks: Set<ProxyServer.Link> = []
   /// Lifetime traffic, kept across launches.
   private(set) var usage = ProxyController.loadUsage()
+  /// Bytes relayed since the proxy last started, kept across launches so the last session stays visible.
+  private(set) var sessionUsage = UInt64(max(0, UserDefaults.standard.integer(forKey: ProxyController.sessionUsageKey)))
 
   struct ThroughputSample: Identifiable {
     let id: Int
@@ -44,6 +46,7 @@ final class ProxyController {
   /// Whether the user left the proxy on, so a relaunch after iOS terminated the app starts it again.
   private static let wasRunningKey = "wasRunning"
   private static let usageKey = "usageLog"
+  private static let sessionUsageKey = "sessionUsage"
   /// Saving every tick would rewrite defaults each second; a crash loses at most this many seconds.
   private static let usageSaveInterval = 10
   private var unsavedUsageTicks = 0
@@ -57,6 +60,12 @@ final class ProxyController {
     unsavedUsageTicks = 0
     guard let data = try? JSONEncoder().encode(usage) else { return }
     UserDefaults.standard.set(data, forKey: Self.usageKey)
+    UserDefaults.standard.set(Int(clamping: sessionUsage), forKey: Self.sessionUsageKey)
+  }
+
+  private func record(up: UInt64, down: UInt64) {
+    usage.record(up: up, down: down)
+    sessionUsage &+= up &+ down
   }
 
   var shouldRestore: Bool {
@@ -125,6 +134,8 @@ final class ProxyController {
     samples = []
     macLinks = []
     linkSeenAt = [:]
+    sessionUsage = 0
+    saveUsage()
     let startedAt = Date.now
     self.startedAt = startedAt
     lastSampledAt = .now
@@ -159,7 +170,7 @@ final class ProxyController {
     terminationAlert.refresh()
     let previous = stats
     stats = server.currentStats()
-    usage.record(up: stats.bytesUp &- previous.bytesUp, down: stats.bytesDown &- previous.bytesDown)
+    record(up: stats.bytesUp &- previous.bytesUp, down: stats.bytesDown &- previous.bytesDown)
     unsavedUsageTicks += 1
     if unsavedUsageTicks >= Self.usageSaveInterval {
       saveUsage()
@@ -183,7 +194,7 @@ final class ProxyController {
   private func recordUsage() {
     guard let server else { return }
     let latest = server.currentStats()
-    usage.record(up: latest.bytesUp &- stats.bytesUp, down: latest.bytesDown &- stats.bytesDown)
+    record(up: latest.bytesUp &- stats.bytesUp, down: latest.bytesDown &- stats.bytesDown)
     stats = latest
   }
 
