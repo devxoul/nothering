@@ -63,7 +63,8 @@ struct NotheringMenuBarApp: App {
   /// (e.g. DerivedData) replaces the installed copy and relaunches from there.
   private static func relaunchFromApplicationsIfNeeded() {
     let source = Bundle.main.bundleURL.resolvingSymlinksInPath()
-    let destination = URL(filePath: "/Applications").appending(path: source.lastPathComponent)
+    let name = Bundle.main.object(forInfoDictionaryKey: "NotheringInstallName") as? String ?? "Nothering"
+    let destination = URL(filePath: "/Applications").appending(path: "\(name).app")
     guard source.deletingLastPathComponent().path != "/Applications" else { return }
 
     for app in NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier ?? "")

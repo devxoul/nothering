@@ -8,7 +8,7 @@ import SystemExtensions
 @MainActor
 @Observable
 final class ExtensionController: NSObject {
-  static let extensionIdentifier = "app.nothering.mac.proxy"
+  static let extensionIdentifier = "\(Bundle.main.bundleIdentifier ?? "app.nothering.mac").proxy"
   /// The legacy Extensions pane ID still resolves to Login Items & Extensions; `extension-points` scrolls to
   /// Extensions with the By Category tab selected.
   static let approvalSettingsURL = URL(string: "x-apple.systempreferences:com.apple.ExtensionsPreferences?extension-points")!
