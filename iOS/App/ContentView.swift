@@ -44,7 +44,7 @@ struct ContentView: View {
         }
 
         Section {
-          UsageView(usage: controller.usage)
+          UsageView(usage: controller.usage, sessionBytes: controller.sessionUsage, isRunning: controller.isRunning)
           LabeledContent("Today", value: formatBytes(controller.usage.today()))
           LabeledContent("This month", value: formatBytes(controller.usage.thisMonth()))
           LabeledContent("All time", value: formatBytes(controller.usage.allTime))
@@ -354,16 +354,18 @@ private struct ThroughputView: View {
 
 private struct UsageView: View {
   let usage: UsageLog
+  let sessionBytes: UInt64
+  let isRunning: Bool
 
   private static let dayCount = 30
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       VStack(alignment: .leading, spacing: 2) {
-        Text("Hotspot data saved")
+        Text(isRunning ? "Hotspot data saved this session" : "Hotspot data saved last session")
           .font(.caption.weight(.medium))
           .foregroundStyle(.green)
-        Text(formatBytes(usage.allTime))
+        Text(formatBytes(sessionBytes))
           .font(.title2.bold())
           .monospacedDigit()
       }
