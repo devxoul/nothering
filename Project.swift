@@ -5,9 +5,21 @@ let bundleIDPrefix = "app.nothering"
 
 // Each configuration gets its own bundle IDs so Debug, Development and Production builds install side by side.
 let configurations: [Configuration] = [
-  .debug(name: "Debug", settings: ["BUNDLE_ID_PREFIX": "\(bundleIDPrefix).debug", "INSTALL_NAME": "Nothering Debug"]),
-  .release(name: "Development", settings: ["BUNDLE_ID_PREFIX": "\(bundleIDPrefix).dev", "INSTALL_NAME": "Nothering Dev"]),
-  .release(name: "Production", settings: ["BUNDLE_ID_PREFIX": .string(bundleIDPrefix), "INSTALL_NAME": "Nothering"]),
+  .debug(name: "Debug", settings: [
+    "BUNDLE_ID_PREFIX": "\(bundleIDPrefix).debug",
+    "INSTALL_NAME": "Nothering Debug",
+    "APP_ICON": "AppIcon-Debug",
+  ]),
+  .release(name: "Development", settings: [
+    "BUNDLE_ID_PREFIX": "\(bundleIDPrefix).dev",
+    "INSTALL_NAME": "Nothering Dev",
+    "APP_ICON": "AppIcon-Dev",
+  ]),
+  .release(name: "Production", settings: [
+    "BUNDLE_ID_PREFIX": .string(bundleIDPrefix),
+    "INSTALL_NAME": "Nothering",
+    "APP_ICON": "AppIcon",
+  ]),
 ]
 
 let baseSettings: SettingsDictionary = [
@@ -20,6 +32,10 @@ let version: [String: Plist.Value] = [
   "CFBundleShortVersionString": "0.4.0",
   "CFBundleVersion": .string(Environment.buildNumber.getString(default: "1")),
 ]
+
+// Each configuration picks its icon through APP_ICON, so Debug and Development builds are told apart at a glance.
+let appIcons: [ResourceFileElement] = ["Shared/AppIcon.icon", "Shared/AppIcon-Debug.icon", "Shared/AppIcon-Dev.icon"]
+let appIcon: SettingsDictionary = ["ASSETCATALOG_COMPILER_APPICON_NAME": "$(APP_ICON)"]
 
 let hardenedRuntime: SettingsDictionary = ["ENABLE_HARDENED_RUNTIME": "YES"]
 
@@ -76,8 +92,9 @@ let project = Project(
         "ITSAppUsesNonExemptEncryption": false,
       ]) { $1 }),
       sources: ["iOS/App/**"],
-      resources: ["Shared/AppIcon.icon", "iOS/Resources/**"],
-      dependencies: [.target(name: "ProxyCore")]
+      resources: .resources(appIcons + ["iOS/Resources/**"]),
+      dependencies: [.target(name: "ProxyCore")],
+      settings: .settings(base: appIcon)
     ),
     .target(
       name: "PhoneLink",
@@ -124,7 +141,7 @@ let project = Project(
         "CFBundleURLTypes": [["CFBundleURLName": "$(PRODUCT_BUNDLE_IDENTIFIER)", "CFBundleURLSchemes": ["nothering"]]],
       ]) { $1 }.merging(sparkle) { $1 }),
       sources: ["MacApp/Sources/**"],
-      resources: ["MacApp/Resources/**", "Shared/AppIcon.icon"],
+      resources: .resources(["MacApp/Resources/**"] + appIcons),
       entitlements: "MacApp/App.entitlements",
       // The proxy extension is not a target dependency: Xcode would embed it under a path resolved with the Debug
       // configuration only, while macOS requires its file name to match the per-configuration bundle ID. The
@@ -146,7 +163,7 @@ let project = Project(
         .target(name: "PhoneLink"),
         .package(product: "Sparkle"),
       ],
-      settings: .settings(base: hardenedRuntime.merging([
+      settings: .settings(base: hardenedRuntime.merging(appIcon) { $1 }.merging([
         "CODE_SIGN_IDENTITY[sdk=macosx*]": "Apple Development",
         "ENABLE_USER_SCRIPT_SANDBOXING": "NO",
       ]) { $1 })
