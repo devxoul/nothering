@@ -164,7 +164,7 @@ def build_ios(api_key, build_number)
   build_app(
     workspace: WORKSPACE,
     scheme: "NotheringiOS",
-    configuration: "Release",
+    configuration: "Production",
     export_method: "app-store",
     output_directory: OUTPUT_DIR
   )
@@ -218,7 +218,7 @@ def build_mac(api_key, build_number)
   app_path = build_app(
     workspace: WORKSPACE,
     scheme: "NotheringMenuBar",
-    configuration: "Release",
+    configuration: "Production",
     export_method: "developer-id",
     output_directory: OUTPUT_DIR,
     # A known location, so the Sparkle tools resolved alongside the framework can be found.
@@ -234,7 +234,7 @@ def build_mac(api_key, build_number)
     "xcodebuild", "build", "-quiet",
     "-workspace", File.join(ROOT, WORKSPACE),
     "-scheme", "NotheringMac",
-    "-configuration", "Release",
+    "-configuration", "Production",
     "-destination", "generic/platform=macOS",
     "-derivedDataPath", derived_data,
     "OTHER_CODE_SIGN_FLAGS=--timestamp",
@@ -243,7 +243,7 @@ def build_mac(api_key, build_number)
   )
   # A bare binary can't be stapled; Gatekeeper looks the ticket up online instead.
   cli_zip = File.join(OUTPUT_DIR, "nothering-cli-#{version}.zip")
-  sh("ditto", "-c", "-k", File.join(derived_data, "Build/Products/Release/nothering"), cli_zip)
+  sh("ditto", "-c", "-k", File.join(derived_data, "Build/Products/Production/nothering"), cli_zip)
   notarize(package: cli_zip, api_key: api_key, skip_stapling: true)
 
   UI.success("Notarized: #{app_zip}, #{cli_zip}")

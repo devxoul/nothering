@@ -3,6 +3,13 @@ import ProjectDescription
 let teamID = "N2C267LBVY"
 let bundleIDPrefix = "app.nothering"
 
+// Each configuration gets its own bundle IDs so Debug, Development and Production builds install side by side.
+let configurations: [Configuration] = [
+  .debug(name: "Debug", settings: ["BUNDLE_ID_PREFIX": "\(bundleIDPrefix).debug", "INSTALL_NAME": "Nothering Debug"]),
+  .release(name: "Development", settings: ["BUNDLE_ID_PREFIX": "\(bundleIDPrefix).dev", "INSTALL_NAME": "Nothering Dev"]),
+  .release(name: "Production", settings: ["BUNDLE_ID_PREFIX": .string(bundleIDPrefix), "INSTALL_NAME": "Nothering"]),
+]
+
 let baseSettings: SettingsDictionary = [
   "DEVELOPMENT_TEAM": .string(teamID),
   "CODE_SIGN_STYLE": "Automatic",
@@ -35,7 +42,7 @@ let project = Project(
   packages: [
     .remote(url: "https://github.com/sparkle-project/Sparkle", requirement: .upToNextMajor(from: "2.10.0")),
   ],
-  settings: .settings(base: baseSettings),
+  settings: .settings(base: baseSettings, configurations: configurations, defaultSettings: .recommended),
   targets: [
     .target(
       name: "ProxyCore",
@@ -60,7 +67,7 @@ let project = Project(
       destinations: [.iPhone],
       product: .app,
       productName: "Nothering",
-      bundleId: "\(bundleIDPrefix).ios",
+      bundleId: "$(BUNDLE_ID_PREFIX).ios",
       deploymentTargets: .iOS("18.0"),
       infoPlist: .extendingDefault(with: version.merging(localNetworkUsage) { $1 }.merging([
         "CFBundleDisplayName": "Nothering",
@@ -107,35 +114,54 @@ let project = Project(
       destinations: [.mac],
       product: .app,
       productName: "Nothering",
-      bundleId: "\(bundleIDPrefix).mac",
+      bundleId: "$(BUNDLE_ID_PREFIX).mac",
       deploymentTargets: .macOS("15.0"),
       infoPlist: .extendingDefault(with: version.merging([
         "CFBundleDisplayName": "Nothering",
         "LSUIElement": true,
-        "CFBundleURLTypes": [["CFBundleURLName": "app.nothering.mac", "CFBundleURLSchemes": ["nothering"]]],
+        // The app copies itself to /Applications under this name, so each configuration installs side by side.
+        "NotheringInstallName": "$(INSTALL_NAME)",
+        "CFBundleURLTypes": [["CFBundleURLName": "$(PRODUCT_BUNDLE_IDENTIFIER)", "CFBundleURLSchemes": ["nothering"]]],
       ]) { $1 }.merging(sparkle) { $1 }),
       sources: ["MacApp/Sources/**"],
       resources: ["MacApp/Resources/**", "Shared/AppIcon.icon"],
       entitlements: "MacApp/App.entitlements",
+      // The proxy extension is not a target dependency: Xcode would embed it under a path resolved with the Debug
+      // configuration only, while macOS requires its file name to match the per-configuration bundle ID. The
+      // NotheringMenuBar scheme builds it first and this script embeds it before the app is signed.
+      scripts: [
+        .post(
+          script: #"""
+          dir="$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Library/SystemExtensions"
+          mkdir -p "$dir"
+          rm -rf "$dir"/*.systemextension
+          ditto "$BUILT_PRODUCTS_DIR/$BUNDLE_ID_PREFIX.mac.proxy.systemextension" "$dir/$BUNDLE_ID_PREFIX.mac.proxy.systemextension"
+          """#,
+          name: "Embed System Extension",
+          basedOnDependencyAnalysis: false
+        ),
+      ],
       dependencies: [
-        .target(name: "NotheringProxyExtension"),
         .target(name: "ProxyCore"),
         .target(name: "PhoneLink"),
         .package(product: "Sparkle"),
       ],
-      settings: .settings(base: hardenedRuntime.merging(["CODE_SIGN_IDENTITY[sdk=macosx*]": "Apple Development"]) { $1 })
+      settings: .settings(base: hardenedRuntime.merging([
+        "CODE_SIGN_IDENTITY[sdk=macosx*]": "Apple Development",
+        "ENABLE_USER_SCRIPT_SANDBOXING": "NO",
+      ]) { $1 })
     ),
     .target(
       name: "NotheringProxyExtension",
       destinations: [.mac],
       product: .systemExtension,
-      productName: "\(bundleIDPrefix).mac.proxy",
-      bundleId: "\(bundleIDPrefix).mac.proxy",
+      productName: "$(BUNDLE_ID_PREFIX).mac.proxy",
+      bundleId: "$(BUNDLE_ID_PREFIX).mac.proxy",
       deploymentTargets: .macOS("15.0"),
       infoPlist: .extendingDefault(with: version.merging([
         "NSSystemExtensionUsageDescription": "Nothering routes your Mac's network connections through your iPhone.",
         "NetworkExtension": [
-          "NEMachServiceName": "$(TeamIdentifierPrefix)app.nothering.mac.proxy",
+          "NEMachServiceName": "$(TeamIdentifierPrefix)$(BUNDLE_ID_PREFIX).mac.proxy",
           "NEProviderClasses": [
             "com.apple.networkextension.app-proxy": "$(PRODUCT_MODULE_NAME).TransparentProxyProvider",
             "com.apple.networkextension.dns-proxy": "$(PRODUCT_MODULE_NAME).DNSProxyProvider",
@@ -156,7 +182,19 @@ let project = Project(
         "CODE_SIGN_IDENTITY[sdk=macosx*]": "Apple Development",
         "PRODUCT_MODULE_NAME": "NotheringProxyExtension",
         "ENABLE_USER_SCRIPT_SANDBOXING": "NO",
+        // Embedded by NotheringMenuBar's script, so archives don't carry it as a separate product.
+        "SKIP_INSTALL": "YES",
       ]) { $1 })
+    ),
+  ],
+  schemes: [
+    .scheme(
+      name: "NotheringMenuBar",
+      buildAction: .buildAction(targets: ["NotheringProxyExtension", "NotheringMenuBar"], buildOrder: .manual),
+      runAction: .runAction(configuration: "Debug", executable: "NotheringMenuBar"),
+      archiveAction: .archiveAction(configuration: "Production"),
+      profileAction: .profileAction(configuration: "Production", executable: "NotheringMenuBar"),
+      analyzeAction: .analyzeAction(configuration: "Debug")
     ),
   ]
 )
