@@ -1,5 +1,13 @@
 Nothering is a personal SOCKS5 proxy that runs on the iPhone (port 11080). A free, open source companion app for Mac (https://github.com/devxoul/nothering/releases) connects to it over a USB cable or Personal Hotspot and routes the Mac's connections through it. The proxy only serves the user's own Mac: it accepts connections from the USB link (loopback) and the Personal Hotspot interface, never from Wi-Fi or cellular peers.
 
+Demo video: https://github.com/devxoul/nothering/raw/main/docs/app-review-demo.mp4
+Recorded on a physical iPhone 16 Pro Max connected to a Mac with a USB cable. The left side is the iPhone's live screen, captured with QuickTime Player's built-in iPhone screen recording (File > New Movie Recording, with the iPhone selected as the camera), a native macOS feature. That capture mode shows the iPhone status bar as 9:41. The right side is the Mac's screen.
+- 0:00 The app is launched from the Home Screen and is Stopped. Tapping Start Proxy changes the status to Running and "Mac connected via USB".
+- 0:05 The Mac runs a speed test on fast.com in Safari. All of its traffic goes through the iPhone's cellular connection, and the iPhone's throughput chart follows it.
+- 0:35 The iPhone is locked. The speed test on the Mac keeps running at full speed for about 50 seconds, which shows the proxy keeps serving the Mac in the background. This is what the background audio mode is used for (see below).
+- 1:25 The iPhone is unlocked and the app shows the traffic it carried while locked.
+The app plays no audible sound at any point, so the video has no audio track.
+
 How to test:
 1. On the iPhone, open Nothering and tap Start Proxy. The status changes to Running.
 2. Install the Mac app from the link above, connect the Mac to the iPhone with a USB cable, and turn on Nothering from the menu bar icon.
