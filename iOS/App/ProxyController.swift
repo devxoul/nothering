@@ -89,6 +89,10 @@ final class ProxyController {
     keeper.resume()
   }
 
+  func setFocusSound(_ sound: FocusSound) {
+    keeper.sound = sound
+  }
+
   /// Asks for notification permission when turning on, and reports whether it ended up on.
   func setNotifiesOnTermination(_ enabled: Bool) async -> Bool {
     var enabled = enabled
