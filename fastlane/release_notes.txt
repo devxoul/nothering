@@ -1,5 +1,3 @@
-The app now shows how much hotspot data it saved each day.
-The Live Activity is gone. Turn on the bell under the Start button to get a notification if the app closes while the proxy is on, and use the Focus guide to let it through Focus.
-The proxy now stops when the last Mac disconnects.
-Start the proxy, connect your Mac, browse a bit, then check the daily usage. Close the app with the bell on and check that the notification arrives.
-On the Mac, quit the iPhone app while connected and check the red dot in the menu bar.
+New Focus sound setting: pick White, Pink or Brown noise under the status card to hear ambient noise while the proxy is on.
+Start the proxy with a Focus sound selected, go to the Home Screen and lock the iPhone, and check that the sound keeps playing and the Mac stays connected. Switch sounds while it plays, then tap Stop Proxy and check that the sound stops.
+The "Hotspot data saved" headline now shows the current session while the proxy is on, and the last session after it stops.

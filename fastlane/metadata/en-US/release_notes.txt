@@ -1,3 +1,2 @@
-See how much hotspot data Nothering saved each day.
-Get notified if the app closes while the proxy is on, with a guide for allowing it during Focus.
-The proxy now stops on its own when your Mac disconnects.
+Focus sound: play white, pink or brown noise while the proxy is on to tune out a noisy cafe or job site. It keeps playing in the background and with the iPhone locked.
+"Hotspot data saved" now shows the current or last session.
