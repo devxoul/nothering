@@ -7,6 +7,7 @@ struct ContentView: View {
   @Environment(\.scenePhase) private var scenePhase
   @Environment(\.openURL) private var openURL
   @AppStorage(TerminationAlert.enabledKey) private var notifiesOnTermination = false
+  @AppStorage(FocusSound.storageKey) private var focusSound = FocusSound.off
   @State private var showingFocusGuide = false
 
   private var notifiesOnTerminationBinding: Binding<Bool> {
@@ -37,6 +38,16 @@ struct ContentView: View {
             Label(error, systemImage: "exclamationmark.triangle.fill")
               .foregroundStyle(.red)
           }
+        }
+
+        Section {
+          Picker("Focus sound", selection: $focusSound) {
+            ForEach(FocusSound.allCases) { sound in
+              Text(sound.title).tag(sound)
+            }
+          }
+        } footer: {
+          Text("Working from a cafe, a client's office or a job site? Ambient noise masks the chatter around you so you can focus. It plays while the proxy is on, including when Nothering is in the background or the iPhone is locked.")
         }
 
         Section("Throughput") {
@@ -113,6 +124,9 @@ struct ContentView: View {
         if CommandLine.arguments.contains("--autostart") || controller.shouldRestore, !controller.isRunning {
           await controller.start()
         }
+      }
+      .onChange(of: focusSound) { _, sound in
+        controller.setFocusSound(sound)
       }
       .onChange(of: scenePhase) { _, phase in
         if phase == .active {
