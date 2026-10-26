@@ -29,7 +29,7 @@ let baseSettings: SettingsDictionary = [
 ]
 
 let version: [String: Plist.Value] = [
-  "CFBundleShortVersionString": "0.4.0",
+  "CFBundleShortVersionString": "0.5.1",
   "CFBundleVersion": .string(Environment.buildNumber.getString(default: "1")),
 ]
 
