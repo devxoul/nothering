@@ -215,15 +215,17 @@ def build_mac(api_key, build_number)
     code_sign_identity: "Developer ID Application"
   )
 
-  app_path = build_app(
+  # gym reads build settings from the scheme's first target, which is the proxy extension, so it doesn't treat the
+  # scheme as a Mac app and skips the export. It only archives here; the archive is exported below.
+  build_app(
     workspace: WORKSPACE,
     scheme: "NotheringMenuBar",
     configuration: "Production",
-    export_method: "developer-id",
     output_directory: OUTPUT_DIR,
     # A known location, so the Sparkle tools resolved alongside the framework can be found.
     cloned_source_packages_path: SOURCE_PACKAGES
   )
+  app_path = export_mac_app(profiles)
   notarize(package: app_path, api_key: api_key)
   app_zip = File.join(OUTPUT_DIR, "Nothering-#{version}.zip")
   sh("ditto", "-c", "-k", "--keepParent", app_path, app_zip)
@@ -247,6 +249,31 @@ def build_mac(api_key, build_number)
   notarize(package: cli_zip, api_key: api_key, skip_stapling: true)
 
   UI.success("Notarized: #{app_zip}, #{cli_zip}")
+end
+
+# Exports the archive gym just built with Developer ID signing and returns the app's path.
+def export_mac_app(profiles)
+  options_path = File.join(OUTPUT_DIR, "ExportOptions.plist")
+  File.write(options_path, {
+    "method" => "developer-id",
+    "signingStyle" => "manual",
+    "teamID" => TEAM_ID,
+    "provisioningProfiles" => {
+      MAC_APP_ID => profiles[MAC_APP_ID],
+      MAC_EXTENSION_ID => profiles[MAC_EXTENSION_ID],
+    },
+  }.to_plist)
+
+  app_path = File.join(OUTPUT_DIR, "Nothering.app")
+  FileUtils.rm_rf(app_path)
+  sh(
+    "xcodebuild", "-exportArchive",
+    "-archivePath", lane_context[SharedValues::XCODEBUILD_ARCHIVE],
+    "-exportOptionsPlist", options_path,
+    "-exportPath", OUTPUT_DIR
+  )
+  UI.user_error!("Export didn't produce #{app_path}") unless File.exist?(app_path)
+  app_path
 end
 
 # Writes build/fastlane/appcast.xml for the GitHub Release; the app's feed URL follows the latest release.
