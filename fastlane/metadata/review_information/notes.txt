@@ -1,5 +1,13 @@
 Nothering is a personal SOCKS5 proxy that runs on the iPhone (port 11080). A free, open source companion app for Mac (https://github.com/devxoul/nothering/releases) connects to it over a USB cable or Personal Hotspot and routes the Mac's connections through it. The proxy only serves the user's own Mac: it accepts connections from the USB link (loopback) and the Personal Hotspot interface, never from Wi-Fi or cellular peers.
 
+Background audio demo video (screen recording on a physical iPhone, with sound): https://github.com/devxoul/nothering/raw/main/docs/app-review-demo.mp4
+- 0:00 Start Proxy is tapped and Nothering is Running, with Focus sound set to Off (no sound).
+- 0:07 Focus sound is set to White noise, then Pink noise, then Brown noise. The noise is audible from here on.
+- 0:15 Safari is opened and scrolled, then the Home Screen is shown. The noise keeps playing.
+- 0:29 The iPhone is locked, then unlocked. The noise keeps playing.
+- 0:34 Back in Nothering, Focus sound is switched from Brown noise to Pink noise and the sound changes. The iPhone is locked once more and the noise keeps playing.
+- 0:48 Stop Proxy is tapped and the noise stops.
+
 How to test:
 1. On the iPhone, open Nothering and tap Start Proxy. The status changes to Running.
 2. Install the Mac app from the link above, connect the Mac to the iPhone with a USB cable, and turn on Nothering from the menu bar icon.
