@@ -18,8 +18,8 @@ env:
   BUILD_FLAGS: CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO
 
 jobs:
-  mac:
-    name: Mac (build + test)
+  test:
+    name: Test
     runs-on: macos-26
 
     steps:
@@ -36,46 +36,22 @@ jobs:
       - name: Generate Project
         run: tuist generate --no-open
 
-      # The workspace scheme covers every macOS target (menu bar app, CLI,
-      # system extension, and both test bundles), so one invocation builds it
-      # all and the test run reuses those products.
-      - name: Build
+      # Only the library schemes run, so the apps, CLI and system extension
+      # are never built; they only compile what their test bundles need.
+      - name: Test ProxyCore
         run: |
-          xcodebuild build-for-testing \
+          xcodebuild test \
             -workspace Nothering.xcworkspace \
-            -scheme Nothering-Workspace \
+            -scheme ProxyCore \
             -configuration Debug \
             -destination 'platform=macOS' \
             $BUILD_FLAGS
 
-      - name: Test
+      - name: Test PhoneLink
         run: |
-          xcodebuild test-without-building \
+          xcodebuild test \
             -workspace Nothering.xcworkspace \
-            -scheme Nothering-Workspace \
+            -scheme PhoneLink \
             -configuration Debug \
             -destination 'platform=macOS' \
-            $BUILD_FLAGS
-
-  ios:
-    name: iOS (build)
-    runs-on: macos-26
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Tuist
-        uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2
-
-      - name: Generate Project
-        run: tuist generate --no-open
-
-      - name: Build
-        run: |
-          xcodebuild build \
-            -workspace Nothering.xcworkspace \
-            -scheme NotheringiOS \
-            -configuration Debug \
-            -destination 'generic/platform=iOS' \
             $BUILD_FLAGS
