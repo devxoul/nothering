@@ -1,3 +1,2 @@
-New Focus sound setting: pick White, Pink or Brown noise under the status card to hear ambient noise while the proxy is on.
-Start the proxy with a Focus sound selected, go to the Home Screen and lock the iPhone, and check that the sound keeps playing and the Mac stays connected. Switch sounds while it plays, then tap Stop Proxy and check that the sound stops.
-The "Hotspot data saved" headline now shows the current session while the proxy is on, and the last session after it stops.
+Mac: sites you point somewhere else on your Mac, for example in /etc/hosts, now connect to that address through the iPhone instead of the public one.
+Nothing new on the iPhone itself. Start the proxy, turn on capture on the Mac, and check that browsing still works. If you use /etc/hosts entries, check that those sites reach the address you set.
