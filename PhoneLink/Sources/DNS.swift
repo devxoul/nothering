@@ -18,6 +18,44 @@ public enum DNS {
     return nil
   }
 
+  /// The IPv4 and IPv6 addresses (A and AAAA records) in a DNS response's answer section.
+  public static func answerAddresses(_ message: Data) -> [Data] {
+    let bytes = [UInt8](message)
+    guard bytes.count >= 12 else { return [] }
+    let questions = Int(bytes[4]) << 8 | Int(bytes[5])
+    let answers = Int(bytes[6]) << 8 | Int(bytes[7])
+    var index = 12
+    for _ in 0..<questions {
+      guard let end = skipName(bytes, from: index), end + 4 <= bytes.count else { return [] }
+      index = end + 4
+    }
+    var addresses: [Data] = []
+    for _ in 0..<answers {
+      guard let end = skipName(bytes, from: index), end + 10 <= bytes.count else { break }
+      let type = Int(bytes[end]) << 8 | Int(bytes[end + 1])
+      let length = Int(bytes[end + 8]) << 8 | Int(bytes[end + 9])
+      let start = end + 10
+      guard start + length <= bytes.count else { break }
+      if (type == 1 && length == 4) || (type == 28 && length == 16) {
+        addresses.append(Data(bytes[start..<start + length]))
+      }
+      index = start + length
+    }
+    return addresses
+  }
+
+  /// The index just past the name starting at `index`, which may end in a compression pointer.
+  private static func skipName(_ bytes: [UInt8], from index: Int) -> Int? {
+    var index = index
+    while index < bytes.count {
+      let length = Int(bytes[index])
+      if length == 0 { return index + 1 }
+      if length & 0xC0 == 0xC0 { return index + 2 }
+      index += 1 + length
+    }
+    return nil
+  }
+
   /// Names only Tailscale's MagicDNS can answer: tailnet domains and single-label short names.
   public static func isTailscaleName(_ name: String) -> Bool {
     !name.contains(".") || name == "ts.net" || name.hasSuffix(".ts.net") || name.hasSuffix(".beta.tailscale.net")
