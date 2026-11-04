@@ -66,7 +66,16 @@ final class TransparentProxyProvider: NETransparentProxyProvider {
     guard let flow = flow as? NEAppProxyTCPFlow else { return false }
     guard !Self.isNetworkExtension(source) || Self.isTailscale(source) else { return false }
     guard case let .hostPort(endpointHost, endpointPort) = flow.remoteFlowEndpoint else { return false }
-    let host = flow.remoteHostname ?? endpointHost.addressString
+    // The phone resolves a name again, with public DNS that knows nothing of the Mac's own overrides
+    // (/etc/hosts, per-domain resolvers). Send the name only when the phone's DNS gave the address
+    // the app connected to; otherwise send that address.
+    let host: String
+    if let name = flow.remoteHostname, let address = endpointHost.addressData,
+       ResolvedNames.phone.contains(address, for: name) {
+      host = name
+    } else {
+      host = endpointHost.addressString
+    }
     let port = endpointPort.rawValue
 
     DispatchQueue.global().async { [logger] in

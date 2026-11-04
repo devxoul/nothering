@@ -51,7 +51,11 @@ enum DNSRelay {
         defer { close(fd) }
         setReceiveTimeout(fd, seconds: 5)
         try SOCKS5.connect(fd, host: resolver, port: 53)
-        return try DNS.exchangeOverTCP(fd, query: query)
+        let response = try DNS.exchangeOverTCP(fd, query: query)
+        if let name = DNS.queryName(query) {
+          ResolvedNames.phone.record(DNS.answerAddresses(response), for: name)
+        }
+        return response
       }
       guard case let .hostPort(host, port) = server else { return nil }
       return try exchangeOverUDP(query, host: host.addressString, port: port.rawValue)
@@ -92,7 +96,21 @@ enum DNSRelay {
   }
 }
 
+extension ResolvedNames {
+  /// What the phone's DNS answered, which is how the phone resolves a name sent to it.
+  static let phone = ResolvedNames()
+}
+
 extension Network.NWEndpoint.Host {
+  /// The raw IPv4 or IPv6 address, or nil for a name.
+  var addressData: Data? {
+    switch self {
+    case let .ipv4(address): address.rawValue
+    case let .ipv6(address): address.rawValue
+    default: nil
+    }
+  }
+
   /// The host as a string usable with getaddrinfo, keeping any IPv6 scope (e.g. `fe80::1%en0`).
   var addressString: String {
     switch self {
