@@ -83,7 +83,7 @@ public enum DNS {
     var offset = 0
     while offset < count {
       let received = data.withUnsafeMutableBytes { Darwin.read(fd, $0.baseAddress! + offset, count - offset) }
-      guard received > 0 else { throw LinkError("DNS server closed the connection") }
+      guard received > 0 else { throw LinkError.readFailed(from: "DNS server", result: received) }
       offset += received
     }
     return data

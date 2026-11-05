@@ -85,7 +85,7 @@ public enum SOCKS5 {
     var offset = 0
     while offset < count {
       let received = bytes.withUnsafeMutableBytes { Darwin.read(fd, $0.baseAddress! + offset, count - offset) }
-      guard received > 0 else { throw LinkError("SOCKS5 proxy closed the connection") }
+      guard received > 0 else { throw LinkError.readFailed(from: "SOCKS5 proxy", result: received) }
       offset += received
     }
     return bytes

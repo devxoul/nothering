@@ -67,6 +67,23 @@ import Testing
   #expect(throws: LinkError.self) { try SOCKS5.greet(fds[0]) }
 }
 
+@Test func tellsReceiveTimeoutFromPeerClose() throws {
+  var fds: [Int32] = [0, 0]
+  #expect(socketpair(AF_UNIX, SOCK_STREAM, 0, &fds) == 0)
+  defer { close(fds[0]) }
+  var on: Int32 = 1
+  setsockopt(fds[0], SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
+  var timeout = timeval(tv_sec: 0, tv_usec: 50_000)
+  setsockopt(fds[0], SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+
+  let timedOut = #expect(throws: LinkError.self) { try SOCKS5.greet(fds[0]) }
+  #expect(timedOut?.kind == .timedOut)
+
+  close(fds[1])
+  let closed = #expect(throws: LinkError.self) { try SOCKS5.greet(fds[0]) }
+  #expect(closed?.kind == .generic)
+}
+
 /// Echoes one datagram at a time on 127.0.0.1 from a background thread.
 private final class UDPEcho: @unchecked Sendable {
   let port: UInt16
