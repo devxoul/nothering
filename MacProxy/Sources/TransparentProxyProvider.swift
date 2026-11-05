@@ -5,7 +5,7 @@ import os
 import PhoneLink
 
 /// Receives app TCP and UDP flows from macOS and relays each one to the iPhone's SOCKS5 proxy.
-final class TransparentProxyProvider: NETransparentProxyProvider {
+final class TransparentProxyProvider: NETransparentProxyProvider, NEAppProxyUDPFlowHandling {
   private let logger = Logger(subsystem: "app.nothering", category: "proxy")
   /// The menu bar app's forwarder, which owns the USB / hotspot link to the phone.
   private static let forwarderPort: UInt16 = 11080
@@ -64,8 +64,10 @@ final class TransparentProxyProvider: NETransparentProxyProvider {
       return true
     }
     guard let flow = flow as? NEAppProxyTCPFlow else { return false }
-    guard !Self.isNetworkExtension(source) || Self.isTailscale(source) else { return false }
+    guard !Self.isNetworkExtension(source) || Tailscale.isTailscaleApp(source) else { return false }
     guard case let .hostPort(endpointHost, endpointPort) = flow.remoteFlowEndpoint else { return false }
+    // Subnet routes, app connectors and exit nodes only work through the tunnel.
+    if let address = endpointHost.addressData, Tailscale.staysOnTunnel(address, from: source) { return false }
     // The phone resolves a name again, with public DNS that knows nothing of the Mac's own overrides
     // (/etc/hosts, per-domain resolvers). Send the name only when the phone's DNS gave the address
     // the app connected to; otherwise send that address.
@@ -108,6 +110,16 @@ final class TransparentProxyProvider: NETransparentProxyProvider {
     return true
   }
 
+  func handleNewUDPFlow(_ flow: NEAppProxyUDPFlow, initialRemoteFlowEndpoint remoteEndpoint: Network.NWEndpoint) -> Bool {
+    // QUIC to a Tailscale-routed address has to stay on the tunnel just like TCP. Later datagrams to
+    // other destinations are checked one by one in `DatagramFlowRelay`.
+    if case let .hostPort(host, _) = remoteEndpoint, let address = host.addressData,
+       Tailscale.staysOnTunnel(address, from: flow.metaData.sourceAppSigningIdentifier) {
+      return false
+    }
+    return handleNewFlow(flow)
+  }
+
   private func relayDatagrams(_ flow: NEAppProxyUDPFlow) {
     DispatchQueue.global().async { [logger] in
       let fd: Int32
@@ -143,8 +155,4 @@ final class TransparentProxyProvider: NETransparentProxyProvider {
       || identifier.hasSuffix(".systemextension")
   }
 
-  /// Tailscale's network extension, standalone (`io.tailscale.ipn.macsys…`) or App Store build.
-  static func isTailscale(_ signingIdentifier: String) -> Bool {
-    signingIdentifier.lowercased().hasPrefix("io.tailscale.ipn.")
-  }
 }
