@@ -178,9 +178,10 @@ final class Session {
   private var upstream: NWConnection?
   private var datagramRelay: DatagramRelay?
   private unowned let server: ProxyServer
-  private static let waitingTimeout: TimeInterval = 10
+  private static let connectTimeout: TimeInterval = 15
   private var replied = false
-  private var waitingDeadlineScheduled = false
+  private var connectDeadlineScheduled = false
+  private var connectError: NWError?
   private var triedNAT64 = false
   private var finishedDirections = 0
   private var closed = false
@@ -283,14 +284,8 @@ final class Session {
         upstream.cancel()
         open(host: .ipv6(Self.nat64Address(for: host)!), port: port)
       case let .waiting(error) where error != .posix(.ECONNREFUSED) && !replied:
-        // Often transient (path or DNS still coming up); give it a bounded chance before failing.
-        guard !waitingDeadlineScheduled else { return }
-        waitingDeadlineScheduled = true
-        server.queue.asyncAfter(deadline: .now() + Self.waitingTimeout) { [self] in
-          guard !replied, !closed else { return }
-          server.logger.notice("connect \(host.debugDescription, privacy: .public):\(port.rawValue) timed out: \(error.debugDescription, privacy: .public)")
-          reply(Self.replyCode(for: error))
-        }
+        // Often transient (path or DNS still coming up); the connect deadline bounds it.
+        connectError = error
       case let .waiting(error), let .failed(error):
         server.logger.notice("connect \(host.debugDescription, privacy: .public):\(port.rawValue) failed: \(error.debugDescription, privacy: .public)")
         replied ? close() : reply(Self.replyCode(for: error))
@@ -300,7 +295,20 @@ final class Session {
         break
       }
     }
+    scheduleConnectDeadline(host: host, port: port)
     upstream.start(queue: server.queue)
+  }
+
+  /// Fails a CONNECT the destination never answers. Dropped packets leave the connection in
+  /// `.preparing` with no state change to act on, so the deadline starts with the first attempt.
+  private func scheduleConnectDeadline(host: NWEndpoint.Host, port: NWEndpoint.Port) {
+    guard !connectDeadlineScheduled else { return }
+    connectDeadlineScheduled = true
+    server.queue.asyncAfter(deadline: .now() + Self.connectTimeout) { [weak self] in
+      guard let self, !replied, !closed else { return }
+      server.logger.notice("connect \(host.debugDescription, privacy: .public):\(port.rawValue) timed out: \(self.connectError?.debugDescription ?? "no response", privacy: .public)")
+      reply(connectError.map(Self.replyCode) ?? 0x06)
+    }
   }
 
   /// Accepts a framed-UDP session; the request's address is unused.
