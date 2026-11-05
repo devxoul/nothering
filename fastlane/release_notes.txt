@@ -1,2 +1,3 @@
-Mac: sites you point somewhere else on your Mac, for example in /etc/hosts, now connect to that address through the iPhone instead of the public one.
-Nothing new on the iPhone itself. Start the proxy, turn on capture on the Mac, and check that browsing still works. If you use /etc/hosts entries, check that those sites reach the address you set.
+Mac: sites reached through Tailscale (subnet routes, app connectors, exit nodes) now stay on Tailscale instead of going through the iPhone. DNS also keeps working when a public resolver can't be reached from the iPhone.
+iPhone: connections to destinations that never answer now give up after 15 seconds.
+Start the proxy, turn on capture on the Mac, and check that browsing still works. If you use Tailscale, check that sites behind its routes still load.
