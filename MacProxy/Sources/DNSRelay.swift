@@ -7,8 +7,8 @@ import PhoneLink
 
 /// Answers DNS queries captured by the DNS proxy. Public names are resolved over TCP through the
 /// phone (tethered DNS is what carriers block first), falling over between public resolvers because
-/// a network can block any one of them; tailnet names, and everything while the phone is
-/// unreachable, go to the query's original server as usual.
+/// a network can block any one of them; tailnet names, queries to Tailscale's resolver (its split DNS
+/// domains), and everything while the phone is unreachable, go to the query's original server as usual.
 enum DNSRelay {
   private static let resolvers = ResolverFailover(["1.1.1.1", "8.8.8.8", "9.9.9.9"])
 
@@ -34,6 +34,7 @@ enum DNSRelay {
       for (query, server) in datagrams {
         DispatchQueue.global().async {
           let viaPhone = reachability.isReachable && !DNS.isTailscaleName(DNS.queryName(query) ?? "")
+            && !server.routesThroughTailscale
           guard let response = resolve(query, server: server, viaPhone: viaPhone, forwarderPort: forwarderPort, logger: logger)
           else { return }
           flow.writeDatagrams([(response, server)]) { _ in }
@@ -130,6 +131,14 @@ enum DNSRelay {
 extension ResolvedNames {
   /// What the phone's DNS answered, which is how the phone resolves a name sent to it.
   static let phone = ResolvedNames()
+}
+
+extension Network.NWEndpoint {
+  /// Whether this is an address the Mac reaches through Tailscale.
+  var routesThroughTailscale: Bool {
+    guard case let .hostPort(host, _) = self, let address = host.addressData else { return false }
+    return Tailscale.routesThroughTailscale(address)
+  }
 }
 
 extension Network.NWEndpoint.Host {

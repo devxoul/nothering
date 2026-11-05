@@ -6,15 +6,24 @@ import PhoneLink
 import ProxyCore
 
 /// Carries an app UDP flow over a framed-UDP session with the phone until either side finishes.
+/// Datagrams to Tailscale-routed destinations go straight into the tunnel instead.
 final class DatagramFlowRelay {
   private let flow: NEAppProxyUDPFlow
   private let fd: Int32
+  private let tunnel: TunnelDatagrams
   private let lock = NSLock()
   private var openDirections = 2
 
   init(flow: NEAppProxyUDPFlow, fd: Int32) {
     self.flow = flow
     self.fd = fd
+    tunnel = TunnelDatagrams { payload, address, port in
+      let host: Network.NWEndpoint.Host? = address.count == 4
+        ? IPv4Address(address).map { .ipv4($0) }
+        : IPv6Address(address).map { .ipv6($0) }
+      guard let host, let port = Network.NWEndpoint.Port(rawValue: port) else { return }
+      flow.writeDatagrams([(payload, .hostPort(host: host, port: port))]) { _ in }
+    }
   }
 
   func start() {
@@ -30,9 +39,11 @@ final class DatagramFlowRelay {
       }
       do {
         for (payload, endpoint) in datagrams {
-          guard case let .hostPort(host, port) = endpoint,
-                let frame = DatagramFrame.encode(payload, host: host, port: port)
-          else { continue }
+          guard case let .hostPort(host, port) = endpoint else { continue }
+          if let address = host.addressData, tunnel.sendIfRouted(payload, to: address, port: port.rawValue) {
+            continue
+          }
+          guard let frame = DatagramFrame.encode(payload, host: host, port: port) else { continue }
           try SOCKS5.writeFrame(fd, frame)
         }
       } catch {
@@ -64,6 +75,7 @@ final class DatagramFlowRelay {
     let finished = openDirections == 0
     lock.unlock()
     if finished {
+      tunnel.close()
       close(fd)
       flow.closeReadWithError(nil)
     }
