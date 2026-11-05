@@ -34,6 +34,21 @@ private func query(_ name: String) -> Data {
     #expect(DNS.answerAddresses(Data([0x12, 0x34])) == [])
   }
 
+  @Test func answersServerFailureToTheQuery() throws {
+    var request = [UInt8](query("example.com"))
+    request[11] = 1
+    let question = request[12...]
+    let opt: [UInt8] = [0, 0x00, 0x29, 0x10, 0x00, 0, 0, 0, 0, 0, 0]
+
+    let response = [UInt8](try #require(DNS.serverFailure(for: Data(request + opt))))
+    #expect(response[0...1] == [0x12, 0x34])
+    #expect(response[2...3] == [0x81, 0x82])
+    #expect(response[4...11] == [0, 1, 0, 0, 0, 0, 0, 0])
+    #expect(response[12...] == question)
+    #expect(DNS.serverFailure(for: Data([0x12, 0x34])) == nil)
+    #expect(DNS.serverFailure(for: query("example.com").dropLast(2)) == nil)
+  }
+
   @Test(arguments: [
     ("my-mac", true),
     ("my-mac.tail1234.ts.net", true),

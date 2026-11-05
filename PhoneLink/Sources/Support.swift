@@ -1,8 +1,10 @@
+import Darwin
 import Foundation
 
 public struct LinkError: LocalizedError {
   public enum Kind {
     case generic
+    case timedOut
     case noUSBDevice
     case usbmuxdUnavailable
   }
@@ -16,6 +18,15 @@ public struct LinkError: LocalizedError {
   }
 
   public var errorDescription: String? { message }
+}
+
+extension LinkError {
+  /// Why a blocking read returned `result` (zero or negative). Call right after the read, for `errno`.
+  static func readFailed(from peer: String, result: Int) -> LinkError {
+    if result == 0 { return LinkError("\(peer) closed the connection") }
+    if errno == EAGAIN { return LinkError("\(peer) timed out", kind: .timedOut) }
+    return LinkError("\(peer) read: \(String(cString: strerror(errno)))")
+  }
 }
 
 @discardableResult

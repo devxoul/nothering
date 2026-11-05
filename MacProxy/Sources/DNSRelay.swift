@@ -6,10 +6,11 @@ import os
 import PhoneLink
 
 /// Answers DNS queries captured by the DNS proxy. Public names are resolved over TCP through the
-/// phone (tethered DNS is what carriers block first); tailnet names, and everything while the phone
-/// is unreachable, go to the query's original server as usual.
+/// phone (tethered DNS is what carriers block first), falling over between public resolvers because
+/// a network can block any one of them; tailnet names, and everything while the phone is
+/// unreachable, go to the query's original server as usual.
 enum DNSRelay {
-  private static let resolver = "1.1.1.1"
+  private static let resolvers = ResolverFailover(["1.1.1.1", "8.8.8.8", "9.9.9.9"])
 
   static func handle(_ flow: NEAppProxyUDPFlow, forwarderPort: UInt16, reachability: PhoneReachability, logger: Logger) {
     flow.open(withLocalFlowEndpoint: nil) { error in
@@ -45,24 +46,54 @@ enum DNSRelay {
   private static func resolve(
     _ query: Data, server: Network.NWEndpoint, viaPhone: Bool, forwarderPort: UInt16, logger: Logger
   ) -> Data? {
+    if viaPhone {
+      return resolveViaPhone(query, forwarderPort: forwarderPort, logger: logger)
+    }
     do {
-      if viaPhone {
-        let fd = try TCP.connect(host: "127.0.0.1", port: forwarderPort)
-        defer { close(fd) }
-        setReceiveTimeout(fd, seconds: 5)
-        try SOCKS5.connect(fd, host: resolver, port: 53)
-        let response = try DNS.exchangeOverTCP(fd, query: query)
-        if let name = DNS.queryName(query) {
-          ResolvedNames.phone.record(DNS.answerAddresses(response), for: name)
-        }
-        return response
-      }
       guard case let .hostPort(host, port) = server else { return nil }
       return try exchangeOverUDP(query, host: host.addressString, port: port.rawValue)
     } catch {
       logger.error("DNS \(DNS.queryName(query) ?? "?", privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
       return nil
     }
+  }
+
+  private static func resolveViaPhone(_ query: Data, forwarderPort: UInt16, logger: Logger) -> Data? {
+    let name = DNS.queryName(query)
+    let answer: Data? = resolvers.firstAnswer { resolver in
+      do {
+        return try exchangeThroughPhone(query, resolver: resolver, forwarderPort: forwarderPort)
+      } catch {
+        logger.error("DNS \(name ?? "?", privacy: .public) via \(resolver, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
+        return nil
+      }
+    }
+    if let answer {
+      if let name {
+        ResolvedNames.phone.record(DNS.answerAddresses(answer), for: name)
+      }
+      return answer
+    }
+    // With the link down, stay silent: the asker retries, and by then the phone counts as unreachable
+    // and the retry goes direct. A SERVFAIL would end the lookup instead.
+    return isPhoneAnswering(forwarderPort: forwarderPort) ? DNS.serverFailure(for: query) : nil
+  }
+
+  private static func exchangeThroughPhone(_ query: Data, resolver: String, forwarderPort: UInt16) throws -> Data {
+    let fd = try TCP.connect(host: "127.0.0.1", port: forwarderPort)
+    defer { close(fd) }
+    // A blocked resolver never replies to CONNECT, so don't let it hold up the next one.
+    setReceiveTimeout(fd, seconds: 2)
+    try SOCKS5.connect(fd, host: resolver, port: 53)
+    setReceiveTimeout(fd, seconds: 5)
+    return try DNS.exchangeOverTCP(fd, query: query)
+  }
+
+  private static func isPhoneAnswering(forwarderPort: UInt16) -> Bool {
+    guard let fd = try? TCP.connect(host: "127.0.0.1", port: forwarderPort) else { return false }
+    defer { close(fd) }
+    setReceiveTimeout(fd, seconds: 2)
+    return (try? SOCKS5.greet(fd)) != nil
   }
 
   private static func exchangeOverUDP(_ query: Data, host: String, port: UInt16) throws -> Data {

@@ -44,6 +44,22 @@ public enum DNS {
     return addresses
   }
 
+  /// A SERVFAIL response to `query`, so the asker fails right away instead of waiting out its timeout.
+  public static func serverFailure(for query: Data) -> Data? {
+    let bytes = [UInt8](query)
+    guard bytes.count >= 12 else { return nil }
+    var end = 12
+    for _ in 0..<(Int(bytes[4]) << 8 | Int(bytes[5])) {
+      guard let nameEnd = skipName(bytes, from: end), nameEnd + 4 <= bytes.count else { return nil }
+      end = nameEnd + 4
+    }
+    var response = Array(bytes[..<end])
+    response[2] = 0x80 | bytes[2] & 0x79 // QR, keeping the query's opcode and RD
+    response[3] = 0x82 // RA, RCODE 2
+    response.replaceSubrange(6..<12, with: [UInt8](repeating: 0, count: 6))
+    return Data(response)
+  }
+
   /// The index just past the name starting at `index`, which may end in a compression pointer.
   private static func skipName(_ bytes: [UInt8], from index: Int) -> Int? {
     var index = index
@@ -83,7 +99,7 @@ public enum DNS {
     var offset = 0
     while offset < count {
       let received = data.withUnsafeMutableBytes { Darwin.read(fd, $0.baseAddress! + offset, count - offset) }
-      guard received > 0 else { throw LinkError("DNS server closed the connection") }
+      guard received > 0 else { throw LinkError.readFailed(from: "DNS server", result: received) }
       offset += received
     }
     return data
