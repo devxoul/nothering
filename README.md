@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://apps.apple.com/app/nothering/id6817766239"><img src="https://img.shields.io/badge/iOS-App_Store-0D96F6?logo=appstore&logoColor=white&labelColor=000" alt="Download on the App Store"></a>
-  <a href="https://testflight.apple.com/join/GYV2fdtp"><img src="https://img.shields.io/badge/iOS-TestFlight-0D96F6?logo=apple&logoColor=white&labelColor=000" alt="iOS TestFlight"></a>
+  <a href="https://testflight.apple.com/join/GYV2fdtp"><img src="https://img.shields.io/badge/iOS-TestFlight%20(beta)-0D96F6?logo=apple&logoColor=white&labelColor=000" alt="iOS TestFlight (beta)"></a>
   <a href="https://github.com/devxoul/nothering/releases/latest"><img src="https://img.shields.io/badge/macOS-Download-2EA44F?logo=apple&logoColor=white&labelColor=000" alt="macOS download"></a>
 </p>
 
