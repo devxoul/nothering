@@ -54,18 +54,14 @@ final class DatagramFlowRelay: SessionRelay {
         _ = socket.write { shutdown($0, SHUT_WR) == 0 }
         return
       }
-      let written = socket.write { fd in
-        for (payload, endpoint) in datagrams {
-          guard case let .hostPort(host, port) = endpoint else { continue }
-          if let address = host.addressData, tunnel.sendIfRouted(payload, to: address, port: port.rawValue) {
-            continue
-          }
-          guard let frame = DatagramFrame.encode(payload, host: host, port: port) else { continue }
-          guard (try? SOCKS5.writeFrame(fd, frame)) != nil else { return false }
+      for (payload, endpoint) in datagrams {
+        guard case let .hostPort(host, port) = endpoint else { continue }
+        if let address = host.addressData, tunnel.sendIfRouted(payload, to: address, port: port.rawValue) {
+          continue
         }
-        return true
+        guard let frame = DatagramFrame.encode(payload, host: host, port: port) else { continue }
+        guard socket.write({ (try? SOCKS5.writeFrame($0, frame)) != nil }) else { return close() }
       }
-      guard written else { return close() }
       readFromFlow()
     }
   }
