@@ -14,7 +14,7 @@ public final class TunnelDatagrams: @unchecked Sendable {
   private let onReceive: (Data, Data, UInt16) -> Void
   private let lock = NSLock()
   private var routed: [Data: Bool] = [:]
-  private var sockets: [Destination: Int32] = [:]
+  private var sockets: [Destination: RelaySocket] = [:]
   private var closed = false
 
   /// `onReceive` gets each reply with the raw address and port it came from.
@@ -31,19 +31,21 @@ public final class TunnelDatagrams: @unchecked Sendable {
   /// like any lost UDP packet.
   public func sendIfRouted(_ payload: Data, to address: Data, port: UInt16) -> Bool {
     guard isRouted(address) else { return false }
-    guard let fd = socket(for: Destination(address: address, port: port)) else { return true }
-    _ = payload.withUnsafeBytes { send(fd, $0.baseAddress, $0.count, 0) }
+    guard let socket = lock.withLock({ socket(for: Destination(address: address, port: port)) }) else { return true }
+    // `RelaySocket` keeps the descriptor from being closed, and its number reused, mid-send. The socket
+    // is nonblocking, so the send never waits (a content filter can hold a full buffer past shutdown):
+    // a datagram with no buffer space is dropped.
+    _ = socket.write { fd in payload.withUnsafeBytes { send(fd, $0.baseAddress, $0.count, 0) } >= 0 }
     return true
   }
 
   /// Stops every socket. Each one closes once its reader wakes up.
   public func close() {
-    lock.lock()
-    closed = true
-    let open = Array(sockets.values)
-    sockets.removeAll()
-    lock.unlock()
-    open.forEach { shutdown($0, SHUT_RDWR) }
+    lock.withLock {
+      closed = true
+      sockets.values.forEach { $0.close() }
+      sockets.removeAll()
+    }
   }
 
   private func isRouted(_ address: Data) -> Bool {
@@ -61,34 +63,25 @@ public final class TunnelDatagrams: @unchecked Sendable {
   }
 
   /// One connected socket per destination: the extension's sandbox only lets a connected UDP socket
-  /// receive replies.
-  private func socket(for destination: Destination) -> Int32? {
-    lock.lock()
-    defer { lock.unlock() }
+  /// receive replies. Called with the lock held.
+  private func socket(for destination: Destination) -> RelaySocket? {
     if closed { return nil }
-    if let fd = sockets[destination] { return fd }
+    if let socket = sockets[destination] { return socket }
     guard let fd = Self.connectedSocket(to: destination) else { return nil }
-    sockets[destination] = fd
-    Thread.detachNewThread { [self] in receive(fd, from: destination) }
-    return fd
+    let socket = RelaySocket(fd: fd)
+    sockets[destination] = socket
+    Thread.detachNewThread { [self] in receive(socket, from: destination) }
+    return socket
   }
 
-  private func receive(_ fd: Int32, from destination: Destination) {
-    var buffer = [UInt8](repeating: 0, count: 65535)
-    while true {
-      let received = recv(fd, &buffer, buffer.count, 0)
-      if received > 0 {
-        onReceive(Data(buffer[0..<received]), destination.address, destination.port)
-      } else if received < 0, errno == EINTR || errno == ECONNREFUSED {
-        continue
-      } else {
-        break
-      }
+  /// Reads replies until the socket closes; the thread is the socket's reader.
+  private func receive(_ socket: RelaySocket, from destination: Destination) {
+    socket.receiveDatagrams { onReceive($0, destination.address, destination.port) }
+    lock.withLock {
+      if sockets[destination] === socket { sockets[destination] = nil }
     }
-    lock.lock()
-    if sockets[destination] == fd { sockets[destination] = nil }
-    lock.unlock()
-    Darwin.close(fd)
+    socket.close()
+    socket.readerDidExit()
   }
 
   private static func connectedSocket(to destination: Destination) -> Int32? {
@@ -118,6 +111,9 @@ public final class TunnelDatagrams: @unchecked Sendable {
     }
     let fd = Darwin.socket(Int32(storage.ss_family), SOCK_DGRAM, IPPROTO_UDP)
     guard fd >= 0 else { return nil }
+    // A send racing `close()` fails with EPIPE; drop that datagram instead of raising SIGPIPE.
+    var on: Int32 = 1
+    setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
     let connected = withUnsafePointer(to: &storage) {
       $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(fd, $0, length) }
     }
@@ -125,6 +121,7 @@ public final class TunnelDatagrams: @unchecked Sendable {
       Darwin.close(fd)
       return nil
     }
+    _ = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK)
     return fd
   }
 }
