@@ -76,19 +76,7 @@ public final class TunnelDatagrams: @unchecked Sendable {
 
   /// Reads replies until the socket closes; the thread is the socket's reader.
   private func receive(_ socket: RelaySocket, from destination: Destination) {
-    var buffer = [UInt8](repeating: 0, count: 65535)
-    while true {
-      var pollFD = pollfd(fd: socket.fd, events: Int16(POLLIN), revents: 0)
-      guard poll(&pollFD, 1, -1) >= 0 || errno == EINTR else { break }
-      let received = recv(socket.fd, &buffer, buffer.count, 0)
-      if received > 0 {
-        onReceive(Data(buffer[0..<received]), destination.address, destination.port)
-      } else if received < 0, errno == EINTR || errno == EAGAIN || errno == ECONNREFUSED {
-        continue
-      } else {
-        break
-      }
-    }
+    socket.receiveDatagrams { onReceive($0, destination.address, destination.port) }
     lock.withLock {
       if sockets[destination] === socket { sockets[destination] = nil }
     }
