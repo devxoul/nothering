@@ -5,16 +5,20 @@ import NetworkExtension
 import os
 import PhoneLink
 
-/// Pumps bytes between an app flow and a blocking socket until both directions finish.
+/// Pumps bytes between an app flow and a blocking socket until both directions finish, or until
+/// `close()` ends it early.
 final class FlowRelay {
   private let flow: NEAppProxyTCPFlow
-  private let fd: Int32
+  private let socket: RelaySocket
+  private let onClose: () -> Void
   private let lock = NSLock()
   private var openDirections = 2
+  private var closed = false
 
-  init(flow: NEAppProxyTCPFlow, fd: Int32) {
+  init(flow: NEAppProxyTCPFlow, fd: Int32, onClose: @escaping () -> Void) {
     self.flow = flow
-    self.fd = fd
+    socket = RelaySocket(fd: fd)
+    self.onClose = onClose
   }
 
   func start() {
@@ -22,20 +26,35 @@ final class FlowRelay {
     Thread.detachNewThread { [self] in readFromSocket() }
   }
 
+  /// Ends both directions now. A flow whose app never closes it, or whose session stopped, never
+  /// completes its pending read, so waiting for both directions would hold the socket forever.
+  func close() {
+    lock.lock()
+    guard !closed else { return lock.unlock() }
+    closed = true
+    lock.unlock()
+    socket.close()
+    flow.closeReadWithError(nil)
+    flow.closeWriteWithError(nil)
+    onClose()
+  }
+
   private func readFromFlow() {
     flow.readData { [self] data, error in
       guard error == nil, let data, !data.isEmpty else {
-        shutdown(fd, SHUT_WR)
+        _ = socket.write { shutdown($0, SHUT_WR) == 0 }
         return directionDone()
       }
-      let written = data.withUnsafeBytes { buffer -> Bool in
-        var offset = 0
-        while offset < buffer.count {
-          let count = write(fd, buffer.baseAddress! + offset, buffer.count - offset)
-          guard count > 0 else { return false }
-          offset += count
+      let written = socket.write { fd in
+        data.withUnsafeBytes { buffer -> Bool in
+          var offset = 0
+          while offset < buffer.count {
+            let count = write(fd, buffer.baseAddress! + offset, buffer.count - offset)
+            guard count > 0 else { return false }
+            offset += count
+          }
+          return true
         }
-        return true
       }
       guard written else {
         flow.closeReadWithError(nil)
@@ -48,7 +67,7 @@ final class FlowRelay {
   private func readFromSocket() {
     var buffer = [UInt8](repeating: 0, count: 64 * 1024)
     while true {
-      let count = read(fd, &buffer, buffer.count)
+      let count = read(socket.fd, &buffer, buffer.count)
       guard count > 0 else { break }
       let sent = DispatchSemaphore(value: 0)
       var failed = false
@@ -59,6 +78,7 @@ final class FlowRelay {
       sent.wait()
       if failed { break }
     }
+    socket.readerDidExit()
     flow.closeWriteWithError(nil)
     directionDone()
   }
@@ -68,9 +88,6 @@ final class FlowRelay {
     openDirections -= 1
     let finished = openDirections == 0
     lock.unlock()
-    if finished {
-      close(fd)
-      flow.closeReadWithError(nil)
-    }
+    if finished { close() }
   }
 }

@@ -19,6 +19,7 @@ final class TransparentProxyProvider: NETransparentProxyProvider, NEAppProxyUDPF
   ]
 
   private let reachability = PhoneReachability(forwarderPort: forwarderPort)
+  private let relays = LiveRelays()
 
   override func startProxy(options: [String: Any]? = nil, completionHandler: @escaping (Error?) -> Void) {
     let settings = NETransparentProxyNetworkSettings(tunnelRemoteAddress: "127.0.0.1")
@@ -47,6 +48,7 @@ final class TransparentProxyProvider: NETransparentProxyProvider, NEAppProxyUDPF
   override func stopProxy(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
     logger.info("proxy stopped, reason \(reason.rawValue)")
     reachability.stop()
+    relays.closeAll()
     completionHandler()
   }
 
@@ -80,7 +82,7 @@ final class TransparentProxyProvider: NETransparentProxyProvider, NEAppProxyUDPF
     }
     let port = endpointPort.rawValue
 
-    DispatchQueue.global().async { [logger] in
+    DispatchQueue.global().async { [logger, relays] in
       let fd: Int32
       do {
         fd = try TCP.connect(host: "127.0.0.1", port: Self.forwarderPort)
@@ -104,7 +106,11 @@ final class TransparentProxyProvider: NETransparentProxyProvider, NEAppProxyUDPF
           flow.closeWriteWithError(error)
           return
         }
-        FlowRelay(flow: flow, fd: fd).start()
+        let id = UUID()
+        let relay = FlowRelay(flow: flow, fd: fd) { relays.remove(id) }
+        let accepted = relays.insert(id, close: relay.close)
+        relay.start()
+        if !accepted { relay.close() }
       }
     }
     return true
@@ -121,7 +127,7 @@ final class TransparentProxyProvider: NETransparentProxyProvider, NEAppProxyUDPF
   }
 
   private func relayDatagrams(_ flow: NEAppProxyUDPFlow) {
-    DispatchQueue.global().async { [logger] in
+    DispatchQueue.global().async { [logger, relays] in
       let fd: Int32
       do {
         fd = try TCP.connect(host: "127.0.0.1", port: Self.forwarderPort)
@@ -144,7 +150,11 @@ final class TransparentProxyProvider: NETransparentProxyProvider, NEAppProxyUDPF
           flow.closeWriteWithError(error)
           return
         }
-        DatagramFlowRelay(flow: flow, fd: fd).start()
+        let id = UUID()
+        let relay = DatagramFlowRelay(flow: flow, fd: fd) { relays.remove(id) }
+        let accepted = relays.insert(id, close: relay.close)
+        relay.start()
+        if !accepted { relay.close() }
       }
     }
   }
