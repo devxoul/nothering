@@ -1,9 +1,10 @@
 import Darwin
 import Foundation
 
-/// A relay's socket to the forwarder, closed exactly once: only after its readers have exited and no
-/// writer is using it, so a descriptor number is never reused while still in use. Whoever creates the
-/// socket (the SOCKS5 handshake) is its first reader; the relay's reader thread claims it later.
+/// A socket shared by blocking readers and writers on different threads, closed exactly once: only
+/// after its readers have exited and no writer is using it, so a descriptor number is never reused
+/// while still in use. Whoever creates the socket is its first reader (for a relay, the SOCKS5
+/// handshake); a relay's reader thread claims it later.
 public final class RelaySocket: @unchecked Sendable {
   public let fd: Int32
   private let lock = NSLock()
