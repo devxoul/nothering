@@ -1,13 +1,13 @@
 import Darwin
 import Foundation
 
-/// A relay's socket to the forwarder, closed exactly once: only after its reader has exited and no
-/// writer is using it, so a descriptor number is never reused while still in use. Until the relay's
-/// reader thread starts, whoever sets the socket up (the SOCKS5 handshake) counts as its reader.
+/// A relay's socket to the forwarder, closed exactly once: only after its readers have exited and no
+/// writer is using it, so a descriptor number is never reused while still in use. Whoever creates the
+/// socket (the SOCKS5 handshake) is its first reader; the relay's reader thread claims it later.
 public final class RelaySocket: @unchecked Sendable {
   public let fd: Int32
   private let lock = NSLock()
-  private var readerExited = false
+  private var readers = 1
   private var writers = 0
   private var closing = false
   private var closed = false
@@ -56,9 +56,19 @@ public final class RelaySocket: @unchecked Sendable {
     }
   }
 
+  /// Makes the caller a reader, so the socket stays open until its `readerDidExit()`; returns false
+  /// once the socket is closing.
+  public func claimReader() -> Bool {
+    lock.withLock {
+      guard !closing else { return false }
+      readers += 1
+      return true
+    }
+  }
+
   public func readerDidExit() {
     lock.withLock {
-      readerExited = true
+      readers -= 1
       closeIfIdle()
     }
   }
@@ -82,7 +92,7 @@ public final class RelaySocket: @unchecked Sendable {
   }
 
   private func closeIfIdle() {
-    guard closing, readerExited, writers == 0, !closed else { return }
+    guard closing, readers == 0, writers == 0, !closed else { return }
     closed = true
     Darwin.close(fd)
   }

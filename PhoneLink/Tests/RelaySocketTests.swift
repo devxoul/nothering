@@ -49,6 +49,19 @@ import Testing
     socket.readerDidExit()
   }
 
+  @Test func closesRightAwayWhileNoReaderHoldsIt() throws {
+    let (socket, peer) = try makePair()
+    defer { close(peer) }
+    var before = stat()
+    #expect(fstat(socket.fd, &before) == 0)
+    socket.readerDidExit()
+    socket.close()
+    // Closed: the number is invalid, or already reused by another test for a different socket.
+    var after = stat()
+    #expect(fstat(socket.fd, &after) != 0 || after.st_ino != before.st_ino)
+    #expect(!socket.claimReader())
+  }
+
   @Test func reportsACompletedFlowWrite() throws {
     let (socket, peer) = try makePair()
     defer { close(peer) }
