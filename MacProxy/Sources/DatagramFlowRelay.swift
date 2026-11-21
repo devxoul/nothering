@@ -72,14 +72,8 @@ final class DatagramFlowRelay {
 
   private func readFromSocket() {
     while let body = try? SOCKS5.readFrame(socket.fd), let frame = DatagramFrame.decode(body: body) {
-      let sent = DispatchSemaphore(value: 0)
-      var failed = false
-      flow.writeDatagrams([(frame.payload, .hostPort(host: frame.host, port: frame.port))]) { error in
-        failed = error != nil
-        sent.signal()
-      }
-      sent.wait()
-      if failed { break }
+      let datagram = (frame.payload, Network.NWEndpoint.hostPort(host: frame.host, port: frame.port))
+      guard socket.awaitFlowWrite({ flow.writeDatagrams([datagram], completionHandler: $0) }) else { break }
     }
     socket.readerDidExit()
     close()

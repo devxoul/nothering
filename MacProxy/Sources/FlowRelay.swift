@@ -69,14 +69,8 @@ final class FlowRelay {
     while true {
       let count = read(socket.fd, &buffer, buffer.count)
       guard count > 0 else { break }
-      let sent = DispatchSemaphore(value: 0)
-      var failed = false
-      flow.write(Data(buffer[0..<count])) { error in
-        failed = error != nil
-        sent.signal()
-      }
-      sent.wait()
-      if failed { break }
+      let data = Data(buffer[0..<count])
+      guard socket.awaitFlowWrite({ flow.write(data, withCompletionHandler: $0) }) else { break }
     }
     socket.readerDidExit()
     flow.closeWriteWithError(nil)
