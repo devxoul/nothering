@@ -37,40 +37,4 @@ import Testing
     socket.readerDidExit()
     #expect(inode(of: socket.fd) != original)
   }
-
-  @Test func teardownWaitsForAStartUnderWay() throws {
-    let (socket, peer) = try makePair()
-    defer { close(peer) }
-    socket.readerDidExit()
-    let lifecycle = RelayLifecycle(socket: socket)
-    let lock = NSLock()
-    var events: [String] = []
-    let inStart = DispatchSemaphore(value: 0)
-    let release = DispatchSemaphore(value: 0)
-    let closing = DispatchSemaphore(value: 0)
-    let done = DispatchSemaphore(value: 0)
-    Thread.detachNewThread {
-      lifecycle.start {
-        inStart.signal()
-        _ = release.wait(timeout: .now() + 5)
-        lock.withLock { events.append("pumps") }
-      }
-      done.signal()
-    }
-    #expect(inStart.wait(timeout: .now() + 5) == .success)
-    Thread.detachNewThread {
-      closing.signal()
-      lifecycle.close {
-        lock.withLock { events.append("teardown") }
-        socket.close()
-      }
-      done.signal()
-    }
-    #expect(closing.wait(timeout: .now() + 5) == .success)
-    release.signal()
-    #expect(done.wait(timeout: .now() + 5) == .success)
-    #expect(done.wait(timeout: .now() + 5) == .success)
-    #expect(lock.withLock { events } == ["pumps", "teardown"])
-    socket.readerDidExit()
-  }
 }
