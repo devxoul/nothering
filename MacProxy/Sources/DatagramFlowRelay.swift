@@ -7,7 +7,7 @@ import ProxyCore
 
 /// Carries an app UDP flow over a framed-UDP session with the phone until the session ends or
 /// `close()` ends it. Datagrams to Tailscale-routed destinations go straight into the tunnel instead.
-final class DatagramFlowRelay {
+final class DatagramFlowRelay: SessionRelay {
   private let flow: NEAppProxyUDPFlow
   private let socket: RelaySocket
   private let tunnel: TunnelDatagrams
@@ -15,9 +15,9 @@ final class DatagramFlowRelay {
   private let lock = NSLock()
   private var closed = false
 
-  init(flow: NEAppProxyUDPFlow, fd: Int32, onClose: @escaping () -> Void) {
+  init(flow: NEAppProxyUDPFlow, socket: RelaySocket, onClose: @escaping () -> Void) {
     self.flow = flow
-    socket = RelaySocket(fd: fd)
+    self.socket = socket
     self.onClose = onClose
     tunnel = TunnelDatagrams { payload, address, port in
       let host: Network.NWEndpoint.Host? = address.count == 4

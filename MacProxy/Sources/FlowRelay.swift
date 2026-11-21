@@ -7,7 +7,7 @@ import PhoneLink
 
 /// Pumps bytes between an app flow and a blocking socket until both directions finish, or until
 /// `close()` ends it early.
-final class FlowRelay {
+final class FlowRelay: SessionRelay {
   private let flow: NEAppProxyTCPFlow
   private let socket: RelaySocket
   private let onClose: () -> Void
@@ -15,9 +15,9 @@ final class FlowRelay {
   private var openDirections = 2
   private var closed = false
 
-  init(flow: NEAppProxyTCPFlow, fd: Int32, onClose: @escaping () -> Void) {
+  init(flow: NEAppProxyTCPFlow, socket: RelaySocket, onClose: @escaping () -> Void) {
     self.flow = flow
-    socket = RelaySocket(fd: fd)
+    self.socket = socket
     self.onClose = onClose
   }
 

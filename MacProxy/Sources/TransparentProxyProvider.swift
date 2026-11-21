@@ -19,7 +19,9 @@ final class TransparentProxyProvider: NETransparentProxyProvider, NEAppProxyUDPF
   ]
 
   private let reachability = PhoneReachability(forwarderPort: forwarderPort)
-  private let relays = LiveRelays()
+  private let relaysLock = NSLock()
+  private var sessionRelays = LiveRelays()
+  private var relays: LiveRelays { relaysLock.withLock { sessionRelays } }
 
   override func startProxy(options: [String: Any]? = nil, completionHandler: @escaping (Error?) -> Void) {
     let settings = NETransparentProxyNetworkSettings(tunnelRemoteAddress: "127.0.0.1")
@@ -38,6 +40,8 @@ final class TransparentProxyProvider: NETransparentProxyProvider, NEAppProxyUDPF
         )
       }
     }
+    // A fresh registry per session, so a setup left over from the previous one can't join this one.
+    relaysLock.withLock { sessionRelays = LiveRelays() }
     reachability.start()
     setTunnelNetworkSettings(settings) { [logger] error in
       logger.info("proxy started, error: \(error?.localizedDescription ?? "none", privacy: .public)")
@@ -82,36 +86,11 @@ final class TransparentProxyProvider: NETransparentProxyProvider, NEAppProxyUDPF
     }
     let port = endpointPort.rawValue
 
-    DispatchQueue.global().async { [logger, relays] in
-      let fd: Int32
-      do {
-        fd = try TCP.connect(host: "127.0.0.1", port: Self.forwarderPort)
-        do {
-          try SOCKS5.connect(fd, host: host, port: port)
-        } catch {
-          close(fd)
-          throw error
-        }
-      } catch {
-        logger.error("relay to \(host, privacy: .public):\(port) failed: \(error.localizedDescription, privacy: .public)")
-        flow.closeReadWithError(error)
-        flow.closeWriteWithError(error)
-        return
-      }
+    startRelay(for: flow, label: "relay to \(host):\(port)") { [logger] fd in
+      try SOCKS5.connect(fd, host: host, port: port)
       logger.info("relaying \(host, privacy: .public):\(port) via iPhone")
-      flow.open(withLocalFlowEndpoint: nil) { error in
-        if let error {
-          close(fd)
-          flow.closeReadWithError(error)
-          flow.closeWriteWithError(error)
-          return
-        }
-        let id = UUID()
-        let relay = FlowRelay(flow: flow, fd: fd) { relays.remove(id) }
-        let accepted = relays.insert(id, close: relay.close)
-        relay.start()
-        if !accepted { relay.close() }
-      }
+    } makeRelay: { socket, onClose in
+      FlowRelay(flow: flow, socket: socket, onClose: onClose)
     }
     return true
   }
@@ -127,31 +106,48 @@ final class TransparentProxyProvider: NETransparentProxyProvider, NEAppProxyUDPF
   }
 
   private func relayDatagrams(_ flow: NEAppProxyUDPFlow) {
-    DispatchQueue.global().async { [logger, relays] in
-      let fd: Int32
-      do {
-        fd = try TCP.connect(host: "127.0.0.1", port: Self.forwarderPort)
-        do {
-          try SOCKS5.openDatagramSession(fd)
-        } catch {
-          close(fd)
-          throw error
-        }
-      } catch {
-        logger.error("UDP relay for \(flow.metaData.sourceAppSigningIdentifier, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
+    startRelay(for: flow, label: "UDP relay for \(flow.metaData.sourceAppSigningIdentifier)") { fd in
+      try SOCKS5.openDatagramSession(fd)
+    } makeRelay: { socket, onClose in
+      DatagramFlowRelay(flow: flow, socket: socket, onClose: onClose)
+    }
+  }
+
+  /// Connects to the forwarder, runs `handshake` on that socket, opens the flow and starts the relay
+  /// `makeRelay` returns. The socket is tracked from the moment it exists, so stopping the session
+  /// also ends a setup still waiting on the forwarder or on the flow to open.
+  private func startRelay(
+    for flow: NEAppProxyFlow, label: String, handshake: @escaping (Int32) throws -> Void,
+    makeRelay: @escaping (RelaySocket, _ onClose: @escaping () -> Void) -> SessionRelay
+  ) {
+    let relays = relays
+    DispatchQueue.global().async { [logger] in
+      let id = UUID()
+      let fail = { (error: Error) in
+        relays.remove(id)
+        logger.error("\(label, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
         flow.closeReadWithError(error)
         flow.closeWriteWithError(error)
-        return
+      }
+      let socket: RelaySocket
+      do {
+        socket = RelaySocket(fd: try TCP.connect(host: "127.0.0.1", port: Self.forwarderPort))
+      } catch {
+        return fail(error)
+      }
+      do {
+        guard relays.insert(id, close: socket.close) else { throw LinkError("proxy stopped") }
+        try handshake(socket.fd)
+      } catch {
+        socket.discard()
+        return fail(error)
       }
       flow.open(withLocalFlowEndpoint: nil) { error in
         if let error {
-          close(fd)
-          flow.closeReadWithError(error)
-          flow.closeWriteWithError(error)
-          return
+          socket.discard()
+          return fail(error)
         }
-        let id = UUID()
-        let relay = DatagramFlowRelay(flow: flow, fd: fd) { relays.remove(id) }
+        let relay = makeRelay(socket) { relays.remove(id) }
         let accepted = relays.insert(id, close: relay.close)
         relay.start()
         if !accepted { relay.close() }
