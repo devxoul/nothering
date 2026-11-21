@@ -120,6 +120,9 @@ public final class TunnelDatagrams: @unchecked Sendable {
     }
     let fd = Darwin.socket(Int32(storage.ss_family), SOCK_DGRAM, IPPROTO_UDP)
     guard fd >= 0 else { return nil }
+    // A send racing `close()` fails with EPIPE; drop that datagram instead of raising SIGPIPE.
+    var on: Int32 = 1
+    setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
     let connected = withUnsafePointer(to: &storage) {
       $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(fd, $0, length) }
     }
