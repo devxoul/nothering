@@ -28,7 +28,15 @@ final class DatagramFlowRelay: SessionRelay {
     }
   }
 
+  /// Starts both pumps, taking over the reader claim the caller made on the socket. A relay already
+  /// closed (its session stopped first) starts neither and gives the claim back.
   func start() {
+    lock.lock()
+    guard !closed else {
+      lock.unlock()
+      return socket.readerDidExit()
+    }
+    lock.unlock()
     readFromFlow()
     Thread.detachNewThread { [self] in readFromSocket() }
   }
