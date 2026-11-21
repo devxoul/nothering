@@ -31,6 +31,9 @@ public final class TunnelDatagrams: @unchecked Sendable {
   /// like any lost UDP packet.
   public func sendIfRouted(_ payload: Data, to address: Data, port: UInt16) -> Bool {
     guard isRouted(address) else { return false }
+    // Sending under the lock keeps the socket from being closed, and its number reused, mid-send.
+    lock.lock()
+    defer { lock.unlock() }
     guard let fd = socket(for: Destination(address: address, port: port)) else { return true }
     _ = payload.withUnsafeBytes { send(fd, $0.baseAddress, $0.count, 0) }
     return true
@@ -38,12 +41,11 @@ public final class TunnelDatagrams: @unchecked Sendable {
 
   /// Stops every socket. Each one closes once its reader wakes up.
   public func close() {
-    lock.lock()
-    closed = true
-    let open = Array(sockets.values)
-    sockets.removeAll()
-    lock.unlock()
-    open.forEach { shutdown($0, SHUT_RDWR) }
+    lock.withLock {
+      closed = true
+      sockets.values.forEach { shutdown($0, SHUT_RDWR) }
+      sockets.removeAll()
+    }
   }
 
   private func isRouted(_ address: Data) -> Bool {
@@ -61,10 +63,8 @@ public final class TunnelDatagrams: @unchecked Sendable {
   }
 
   /// One connected socket per destination: the extension's sandbox only lets a connected UDP socket
-  /// receive replies.
+  /// receive replies. Called with the lock held.
   private func socket(for destination: Destination) -> Int32? {
-    lock.lock()
-    defer { lock.unlock() }
     if closed { return nil }
     if let fd = sockets[destination] { return fd }
     guard let fd = Self.connectedSocket(to: destination) else { return nil }
@@ -85,10 +85,10 @@ public final class TunnelDatagrams: @unchecked Sendable {
         break
       }
     }
-    lock.lock()
-    if sockets[destination] == fd { sockets[destination] = nil }
-    lock.unlock()
-    Darwin.close(fd)
+    lock.withLock {
+      if sockets[destination] == fd { sockets[destination] = nil }
+      Darwin.close(fd)
+    }
   }
 
   private static func connectedSocket(to destination: Destination) -> Int32? {
