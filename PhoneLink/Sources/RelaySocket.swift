@@ -67,6 +67,25 @@ public final class RelaySocket: @unchecked Sendable {
     }
   }
 
+  /// Calls `handle` with each datagram read from the socket until it closes or fails. It waits in
+  /// bounded polls and checks for `close()` between them, because a content filter holding an inbound
+  /// datagram can keep EOF from ever arriving. The caller is the reader and calls `readerDidExit()` after.
+  public func receiveDatagrams(_ handle: (Data) -> Void) {
+    var buffer = [UInt8](repeating: 0, count: 65535)
+    while !lock.withLock({ closing }) {
+      var pollFD = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+      let ready = poll(&pollFD, 1, 500)
+      if ready == 0 || (ready < 0 && errno == EINTR) { continue }
+      guard ready > 0 else { return }
+      let received = read(fd, &buffer, buffer.count)
+      if received > 0 {
+        handle(Data(buffer[0..<received]))
+      } else if received == 0 || (errno != EINTR && errno != EAGAIN && errno != ECONNREFUSED) {
+        return
+      }
+    }
+  }
+
   public func readerDidExit() {
     lock.withLock {
       readers -= 1

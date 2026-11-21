@@ -67,6 +67,25 @@ func makePair() throws -> (RelaySocket, peer: Int32) {
     #expect(!socket.claimReader())
   }
 
+  @Test func closeEndsAReceiveThatNeverSeesEOF() throws {
+    // Shutting down a pipe does nothing, so only noticing `close()` itself can end the receive.
+    var fds: [Int32] = [0, 0]
+    #expect(pipe(&fds) == 0)
+    defer { close(fds[1]) }
+    let socket = RelaySocket(fd: fds[0])
+    let received = DispatchSemaphore(value: 0)
+    let finished = DispatchSemaphore(value: 0)
+    Thread.detachNewThread {
+      socket.receiveDatagrams { _ in received.signal() }
+      socket.readerDidExit()
+      finished.signal()
+    }
+    #expect(write(fds[1], [UInt8(1)], 1) == 1)
+    #expect(received.wait(timeout: .now() + 5) == .success)
+    socket.close()
+    #expect(finished.wait(timeout: .now() + 5) == .success)
+  }
+
   @Test func reportsACompletedFlowWrite() throws {
     let (socket, peer) = try makePair()
     defer { close(peer) }
