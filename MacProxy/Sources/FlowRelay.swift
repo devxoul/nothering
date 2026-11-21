@@ -11,40 +11,33 @@ final class FlowRelay: SessionRelay {
   private let flow: NEAppProxyTCPFlow
   private let socket: RelaySocket
   private let onClose: () -> Void
+  private let lifecycle: RelayLifecycle
   private let lock = NSLock()
   private var openDirections = 2
-  private var closed = false
 
   init(flow: NEAppProxyTCPFlow, socket: RelaySocket, onClose: @escaping () -> Void) {
     self.flow = flow
     self.socket = socket
     self.onClose = onClose
+    lifecycle = RelayLifecycle(socket: socket)
   }
 
-  /// Starts both pumps, taking over the reader claim the caller made on the socket. A relay already
-  /// closed (its session stopped first) starts neither and gives the claim back.
   func start() {
-    lock.lock()
-    guard !closed else {
-      lock.unlock()
-      return socket.readerDidExit()
+    lifecycle.start {
+      readFromFlow()
+      Thread.detachNewThread { [self] in readFromSocket() }
     }
-    lock.unlock()
-    readFromFlow()
-    Thread.detachNewThread { [self] in readFromSocket() }
   }
 
   /// Ends both directions now. A flow whose app never closes it, or whose session stopped, never
   /// completes its pending read, so waiting for both directions would hold the socket forever.
   func close() {
-    lock.lock()
-    guard !closed else { return lock.unlock() }
-    closed = true
-    lock.unlock()
-    socket.close()
-    flow.closeReadWithError(nil)
-    flow.closeWriteWithError(nil)
-    onClose()
+    lifecycle.close {
+      socket.close()
+      flow.closeReadWithError(nil)
+      flow.closeWriteWithError(nil)
+      onClose()
+    }
   }
 
   private func readFromFlow() {

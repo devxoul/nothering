@@ -12,13 +12,13 @@ final class DatagramFlowRelay: SessionRelay {
   private let socket: RelaySocket
   private let tunnel: TunnelDatagrams
   private let onClose: () -> Void
-  private let lock = NSLock()
-  private var closed = false
+  private let lifecycle: RelayLifecycle
 
   init(flow: NEAppProxyUDPFlow, socket: RelaySocket, onClose: @escaping () -> Void) {
     self.flow = flow
     self.socket = socket
     self.onClose = onClose
+    lifecycle = RelayLifecycle(socket: socket)
     tunnel = TunnelDatagrams { payload, address, port in
       let host: Network.NWEndpoint.Host? = address.count == 4
         ? IPv4Address(address).map { .ipv4($0) }
@@ -28,31 +28,23 @@ final class DatagramFlowRelay: SessionRelay {
     }
   }
 
-  /// Starts both pumps, taking over the reader claim the caller made on the socket. A relay already
-  /// closed (its session stopped first) starts neither and gives the claim back.
   func start() {
-    lock.lock()
-    guard !closed else {
-      lock.unlock()
-      return socket.readerDidExit()
+    lifecycle.start {
+      readFromFlow()
+      Thread.detachNewThread { [self] in readFromSocket() }
     }
-    lock.unlock()
-    readFromFlow()
-    Thread.detachNewThread { [self] in readFromSocket() }
   }
 
   /// Ends the flow and the session. UDP has no half-close, so once either side is done nothing more
   /// can be relayed, and an app's flow may never finish its pending read.
   func close() {
-    lock.lock()
-    guard !closed else { return lock.unlock() }
-    closed = true
-    lock.unlock()
-    tunnel.close()
-    socket.close()
-    flow.closeReadWithError(nil)
-    flow.closeWriteWithError(nil)
-    onClose()
+    lifecycle.close {
+      tunnel.close()
+      socket.close()
+      flow.closeReadWithError(nil)
+      flow.closeWriteWithError(nil)
+      onClose()
+    }
   }
 
   private func readFromFlow() {

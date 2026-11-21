@@ -116,7 +116,8 @@ final class TransparentProxyProvider: NETransparentProxyProvider, NEAppProxyUDPF
   /// Connects to the forwarder, runs `handshake` on that socket, opens the flow and starts the relay
   /// `makeRelay` returns. The socket is tracked from the moment it exists, so stopping the session
   /// also ends a setup still waiting on the forwarder or on the flow to open: nothing reads the socket
-  /// while the flow opens, so stopping closes it right away, and a late open then starts no relay.
+  /// while the flow opens, so stopping closes it right away. The relay claims the socket only as it
+  /// starts its pumps, which `RelayLifecycle` orders with teardown, so a late open starts nothing.
   private func startRelay(
     for flow: NEAppProxyFlow, label: String, handshake: @escaping (Int32) throws -> Void,
     makeRelay: @escaping (RelaySocket, _ onClose: @escaping () -> Void) -> SessionRelay
@@ -149,11 +150,9 @@ final class TransparentProxyProvider: NETransparentProxyProvider, NEAppProxyUDPF
           socket.close()
           return fail(error)
         }
-        // The relay's reader thread takes over the claim.
-        guard socket.claimReader() else { return fail(LinkError("proxy stopped")) }
         let relay = makeRelay(socket) { relays.remove(id) }
         guard relays.insert(id, close: relay.close) else {
-          socket.readerDidExit()
+          socket.close()
           return fail(LinkError("proxy stopped"))
         }
         relay.start()
