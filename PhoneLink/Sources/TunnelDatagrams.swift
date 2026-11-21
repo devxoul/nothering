@@ -32,8 +32,9 @@ public final class TunnelDatagrams: @unchecked Sendable {
   public func sendIfRouted(_ payload: Data, to address: Data, port: UInt16) -> Bool {
     guard isRouted(address) else { return false }
     guard let socket = lock.withLock({ socket(for: Destination(address: address, port: port)) }) else { return true }
-    // `RelaySocket` keeps the descriptor from being closed, and its number reused, mid-send. The send
-    // runs outside the lock, and `close()` shuts the socket down, which ends a send stuck on a full buffer.
+    // `RelaySocket` keeps the descriptor from being closed, and its number reused, mid-send. The socket
+    // is nonblocking, so the send never waits (a content filter can hold a full buffer past shutdown):
+    // a datagram with no buffer space is dropped.
     _ = socket.write { fd in payload.withUnsafeBytes { send(fd, $0.baseAddress, $0.count, 0) } >= 0 }
     return true
   }
@@ -77,10 +78,12 @@ public final class TunnelDatagrams: @unchecked Sendable {
   private func receive(_ socket: RelaySocket, from destination: Destination) {
     var buffer = [UInt8](repeating: 0, count: 65535)
     while true {
+      var pollFD = pollfd(fd: socket.fd, events: Int16(POLLIN), revents: 0)
+      guard poll(&pollFD, 1, -1) >= 0 || errno == EINTR else { break }
       let received = recv(socket.fd, &buffer, buffer.count, 0)
       if received > 0 {
         onReceive(Data(buffer[0..<received]), destination.address, destination.port)
-      } else if received < 0, errno == EINTR || errno == ECONNREFUSED {
+      } else if received < 0, errno == EINTR || errno == EAGAIN || errno == ECONNREFUSED {
         continue
       } else {
         break
@@ -130,6 +133,7 @@ public final class TunnelDatagrams: @unchecked Sendable {
       Darwin.close(fd)
       return nil
     }
+    _ = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK)
     return fd
   }
 }
