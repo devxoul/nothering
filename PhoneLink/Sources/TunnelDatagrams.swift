@@ -31,11 +31,12 @@ public final class TunnelDatagrams: @unchecked Sendable {
   /// like any lost UDP packet.
   public func sendIfRouted(_ payload: Data, to address: Data, port: UInt16) -> Bool {
     guard isRouted(address) else { return false }
-    // Sending under the lock keeps the socket from being closed, and its number reused, mid-send.
+    // Sending under the lock keeps the socket from being closed, and its number reused, mid-send. The
+    // send never blocks, so teardown never waits on it: a datagram with no buffer space is dropped.
     lock.lock()
     defer { lock.unlock() }
     guard let fd = socket(for: Destination(address: address, port: port)) else { return true }
-    _ = payload.withUnsafeBytes { send(fd, $0.baseAddress, $0.count, 0) }
+    _ = payload.withUnsafeBytes { send(fd, $0.baseAddress, $0.count, MSG_DONTWAIT) }
     return true
   }
 
