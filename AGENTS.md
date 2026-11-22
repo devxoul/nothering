@@ -44,11 +44,15 @@ The GitHub Release notes are auto-generated from merged PRs, so don't write thos
 
 ```bash
 gh workflow run release.yml -f version=X.Y.Z
-# TestFlight only, no App Store review submission:
-# gh workflow run release.yml -f version=X.Y.Z -f submit_for_review=false
+# One platform only (default: both):
+# gh workflow run release.yml -f version=X.Y.Z -f platform=macos
+# iPhone app to TestFlight only, no App Store review submission:
+# gh workflow run release.yml -f version=X.Y.Z -f platform=ios -f submit_for_review=false
 sleep 5
 gh run watch "$(gh run list --workflow release.yml --limit 1 --json databaseId -q '.[0].databaseId')" --exit-status
 ```
+
+With `platform=macos` there's no TestFlight upload or App Store submission. With `platform=ios` there's no Mac build, and the GitHub Release has no assets and isn't marked latest, so the Mac app's update feed stays on the last Mac release.
 
 Report the result with the GitHub Release URL (`gh release view X.Y.Z --json url -q .url`).
 
@@ -56,11 +60,11 @@ Report the result with the GitHub Release URL (`gh release view X.Y.Z --json url
 
 1. Validates `x.y.z` and that the tag doesn't exist yet.
 2. `fastlane bump version:X.Y.Z` sets the version in `Project.swift` and commits locally.
-3. `fastlane release` picks one build number (latest TestFlight build + 1) for both apps, then:
+3. `fastlane release platform:<platform>` picks one build number for both apps (the higher of the latest TestFlight build and the Mac build in the published `appcast.xml`, + 1), then, per platform:
    - builds the Mac app and CLI, signs with Developer ID, notarizes, and zips them to `build/fastlane/`, plus a Sparkle `appcast.xml` for the app;
    - builds the iPhone app and uploads it to TestFlight, waits for processing, and submits it to the external **Beta Testers** group (goes through Beta App Review).
-4. Only after all of that succeeds: pushes the bump commit to `main`, tags `X.Y.Z`, and creates the GitHub Release with `Nothering-X.Y.Z.zip`, `nothering-cli-X.Y.Z.zip` and `appcast.xml` attached.
-5. `fastlane ios submit` uploads the App Store listing from `fastlane/metadata/` and submits the new build for App Store review. A version still waiting for review is pulled and replaced; the approved version is released automatically. Skipped when the workflow runs with `submit_for_review=false`. If only this step fails, the GitHub Release is already out: fix the cause and run `bundle exec fastlane ios submit` locally instead of releasing a new version.
+4. Only after all of that succeeds: pushes the bump commit to `main`, tags `X.Y.Z`, and creates the GitHub Release, with `Nothering-X.Y.Z.zip`, `nothering-cli-X.Y.Z.zip` and `appcast.xml` attached for `both` and `macos`.
+5. `fastlane ios submit` uploads the App Store listing from `fastlane/metadata/` and submits the new build for App Store review. A version still waiting for review is pulled and replaced; the approved version is released automatically. Skipped when the workflow runs with `submit_for_review=false`. If only this step fails, the GitHub Release is already out: fix the cause and run `bundle exec fastlane ios submit version:X.Y.Z` locally from a checkout of the `X.Y.Z` tag instead of releasing a new version. The tag keeps the listing and release notes in `fastlane/metadata/` matched to that build, and naming the version matters because after a Mac-only release `Project.swift` is ahead of the last iPhone upload.
 
 The Mac app updates itself with [Sparkle](https://sparkle-project.org): its feed is `releases/latest/download/appcast.xml`, so publishing the GitHub Release is what ships the update.
 
@@ -87,7 +91,7 @@ The iPhone app's listing lives in `fastlane/metadata/` and `fastlane/screenshots
 ```bash
 bundle exec fastlane ios metadata                  # upload listing, screenshots, age rating
 bundle exec fastlane ios privacy                   # App Privacy answers; needs an Apple ID login
-bundle exec fastlane ios submit [build_number:<n>] # submit a TestFlight build (default: latest for the current version) for review
+bundle exec fastlane ios submit [version:<x.y.z>] [build_number:<n>] # submit a TestFlight build (default: latest for the current version) for review
 ```
 
 In the simulator the app serves on port `11081` without pinning to cellular, so screenshots can show real traffic: `curl --socks5-hostname 127.0.0.1:11081 <url>`.

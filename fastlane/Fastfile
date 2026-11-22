@@ -1,3 +1,5 @@
+require "open-uri"
+
 ROOT = File.expand_path("..", __dir__)
 TEAM_ID = "N2C267LBVY"
 WORKSPACE = "Nothering.xcworkspace"
@@ -51,13 +53,18 @@ lane :bump do |options|
   git_commit(path: path, message: "Bump version to #{version}")
 end
 
-desc "Release both apps: notarized Mac app + CLI in build/fastlane/, iPhone app to TestFlight"
-lane :release do
+desc "Release both apps, or one with platform:ios|macos: notarized Mac app + CLI in build/fastlane/, iPhone app to TestFlight"
+lane :release do |options|
+  platform = (options[:platform] || "both").to_s
+  UI.user_error!("Usage: fastlane release [platform:both|ios|macos]") unless %w[both ios macos].include?(platform)
+
   api_key = app_store_connect_api_key
-  build_number = next_build_number(api_key)
+  # Mac-only releases skip TestFlight, so the number also has to beat the latest Mac build in the Sparkle feed,
+  # which only offers an update with a higher build number.
+  build_number = [next_build_number(api_key), latest_mac_build_number + 1].max
   # Mac first: it has no public side effect, so most failures happen before the TestFlight upload.
-  build_mac(api_key, build_number)
-  build_ios(api_key, build_number)
+  build_mac(api_key, build_number) unless platform == "ios"
+  build_ios(api_key, build_number) unless platform == "macos"
 end
 
 platform :ios do
@@ -75,15 +82,24 @@ platform :ios do
   desc "Upload the listing and submit a TestFlight build for App Store review (default: the current version's latest build)"
   lane :submit do |options|
     api_key = app_store_connect_api_key
-    version = current_version
-    build_number = options[:build_number] ||
-      latest_testflight_build_number(api_key: api_key, app_identifier: IOS_APP_ID, version: version)
+    # Project.swift may be ahead of the last iPhone upload after a Mac-only release, so a retry names its version.
+    version = (options[:version] || current_version).to_s
+    app = Spaceship::ConnectAPI::App.find(IOS_APP_ID)
+    # Checked before cancelling anything in review, which a build that doesn't exist would leave cancelled.
+    build = Spaceship::ConnectAPI::Build.all(
+      app_id: app.id,
+      version: version,
+      build_number: options[:build_number]&.to_s,
+      processing_states: "VALID",
+      limit: 1
+    ).first
+    UI.user_error!("No processed TestFlight build #{options[:build_number]} for version #{version}".squeeze(" ")) unless build
     # deliver's own `reject_if_possible` runs after it renames the edit version, which a version in review rejects.
     cancel_review_submission
     deliver(
       api_key: api_key,
       app_version: version,
-      build_number: build_number.to_s,
+      build_number: build.version,
       submit_for_review: true,
       automatic_release: true
     )
@@ -125,6 +141,15 @@ end
 # Both apps share one build number, taken from TestFlight so it always increases.
 def next_build_number(api_key)
   latest_testflight_build_number(api_key: api_key, app_identifier: IOS_APP_ID, initial_build_number: 0) + 1
+end
+
+def latest_mac_build_number
+  appcast = URI.open("#{GITHUB_REPO_URL}/releases/latest/download/appcast.xml").read
+  appcast[/sparkle:version(?:>|=")(\d+)/, 1].to_i
+rescue OpenURI::HTTPError => e
+  # No Mac release published yet.
+  raise unless e.io.status.first == "404"
+  0
 end
 
 def generate_project(build_number)
