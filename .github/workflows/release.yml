@@ -6,6 +6,14 @@ on:
       version:
         description: "Version (x.y.z)"
         required: true
+      platform:
+        description: "Platform to release"
+        type: choice
+        options:
+          - both
+          - ios
+          - macos
+        default: both
       submit_for_review:
         description: "Submit to App Store review (uncheck while a previous version is still in review)"
         type: boolean
@@ -28,6 +36,7 @@ jobs:
 
     env:
       VERSION: ${{ inputs.version }}
+      PLATFORM: ${{ inputs.platform }}
       MATCH_GIT_URL: https://github.com/devxoul/nothering-match.git
       MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
       # Read directly by fastlane's app_store_connect_api_key action.
@@ -90,9 +99,9 @@ jobs:
       - name: Bump version
         run: bundle exec fastlane bump version:"$VERSION"
 
-      # Notarized Mac app + CLI into build/fastlane/, then the iPhone app to TestFlight.
+      # Notarized Mac app + CLI into build/fastlane/, then the iPhone app to TestFlight (or one of them, per PLATFORM).
       - name: Build and upload
-        run: bundle exec fastlane release
+        run: bundle exec fastlane release platform:"$PLATFORM"
 
       - name: Push commit and tag
         run: |
@@ -104,15 +113,20 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$VERSION" \
-            "build/fastlane/Nothering-$VERSION.zip" \
-            "build/fastlane/nothering-cli-$VERSION.zip" \
-            "build/fastlane/appcast.xml" \
-            --title "$VERSION" \
-            --generate-notes
+          if [ "$PLATFORM" = ios ]; then
+            # Not latest: the Mac app's Sparkle feed is releases/latest/download/appcast.xml.
+            gh release create "$VERSION" --title "$VERSION" --generate-notes --latest=false
+          else
+            gh release create "$VERSION" \
+              "build/fastlane/Nothering-$VERSION.zip" \
+              "build/fastlane/nothering-cli-$VERSION.zip" \
+              "build/fastlane/appcast.xml" \
+              --title "$VERSION" \
+              --generate-notes
+          fi
 
       # Last, so a rejected submission (e.g. App Review's own checks) doesn't hold back the Mac release.
-      # Retry with `bundle exec fastlane ios submit` after fixing the cause.
+      # Retry from a checkout of the X.Y.Z tag with `bundle exec fastlane ios submit version:X.Y.Z` after fixing the cause.
       - name: Submit to App Store review
-        if: inputs.submit_for_review
-        run: bundle exec fastlane ios submit
+        if: inputs.submit_for_review && inputs.platform != 'macos'
+        run: bundle exec fastlane ios submit version:"$VERSION"
