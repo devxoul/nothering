@@ -1,4 +1,3 @@
-import Darwin
 import Foundation
 import Network
 import Observation
@@ -46,7 +45,7 @@ final class PhoneForwarder {
   var preference = Preference(rawValue: UserDefaults.standard.string(forKey: preferenceKey) ?? "") ?? .auto {
     didSet {
       UserDefaults.standard.set(preference.rawValue, forKey: Self.preferenceKey)
-      route.preference = preference
+      route.preference = preference.diagnosisPreference
       refreshLink()
     }
   }
@@ -65,7 +64,7 @@ final class PhoneForwarder {
   private var quitDetector = PhoneQuitDetector()
 
   func start() {
-    route.preference = preference
+    route.preference = preference.diagnosisPreference
     let route = route
     let forwarder = LocalForwarder(port: Self.port) { try route.connect() }
     do {
@@ -98,14 +97,16 @@ final class PhoneForwarder {
   private func refreshLink() {
     let route = route
     Task.detached {
-      let result = route.refresh()
+      guard let result = route.refresh() else { return }
       await MainActor.run {
+        guard route.isCurrent(result) else { return }
         let previousLink = self.link
+        let link = result.diagnosis.link.forwarderLink
         let wasReachable = previousLink != .none
-        let isReachable = result.link != .none
-        self.link = result.link
-        self.detected = result.detected
-        self.hint = result.hint
+        let isReachable = link != .none
+        self.link = link
+        self.detected = result.diagnosis.detected.forwarderLink
+        self.hint = result.diagnosis.hint
         self.trackPhoneProxy(previousLink: previousLink)
         if self.autoTurnOn, wasReachable != isReachable {
           self.onAutoTurnOn?(isReachable)
@@ -144,108 +145,6 @@ final class PhoneForwarder {
   }
 }
 
-/// The current way to reach the phone, cached so each forwarded connection doesn't re-detect it
-/// (running `route` per connection is too slow when a browser opens hundreds at once).
-final class PhoneRoute: @unchecked Sendable {
-  struct RefreshResult: Sendable {
-    let link: PhoneForwarder.Link
-    let detected: PhoneForwarder.Link
-    let hint: String?
-  }
-
-  private static let phonePort: UInt16 = 11080
-  private let lock = NSLock()
-  private var usbDeviceID: Int?
-  private var hotspotGateway: String?
-  private var storedPreference = PhoneForwarder.Preference.auto
-  private var storedIsOnExpensiveWiFi = false
-
-  var preference: PhoneForwarder.Preference {
-    get { lock.withLock { storedPreference } }
-    set { lock.withLock { storedPreference = newValue } }
-  }
-
-  var isOnExpensiveWiFi: Bool {
-    get { lock.withLock { storedIsOnExpensiveWiFi } }
-    set { lock.withLock { storedIsOnExpensiveWiFi = newValue } }
-  }
-
-  @discardableResult
-  func refresh() -> RefreshResult {
-    let preference = preference
-    let (usb, deviceID) = preference == .hotspot ? (.notFound, nil) : probeUSB()
-    let shouldProbeHotspot = preference != .usb && !usb.answers
-    let (hotspot, gateway) = shouldProbeHotspot ? probeHotspot() : (.notFound, nil)
-    let diagnosis = PhoneLinkDiagnosis.evaluate(
-      preference: preference.diagnosisPreference,
-      usb: usb,
-      hotspot: hotspot
-    )
-    let link = diagnosis.link.forwarderLink
-    let detected = diagnosis.detected.forwarderLink
-    lock.withLock {
-      usbDeviceID = link == .usb ? deviceID : nil
-      hotspotGateway = link == .hotspot ? gateway : nil
-    }
-    return RefreshResult(link: link, detected: detected, hint: diagnosis.hint)
-  }
-
-  private func probeUSB() -> (PhoneLinkDiagnosis.USBState, Int?) {
-    do {
-      let deviceID = try USBMux.firstUSBDeviceID()
-      do {
-        close(try USBMux.connect(deviceID: deviceID, port: Self.phonePort))
-        return (.found(proxyAnswers: true), deviceID)
-      } catch {
-        return (.found(proxyAnswers: false), deviceID)
-      }
-    } catch let error as LinkError where error.kind == .noUSBDevice {
-      return (.notFound, nil)
-    } catch {
-      return (.unavailable, nil)
-    }
-  }
-
-  private func probeHotspot() -> (PhoneLinkDiagnosis.HotspotState, String?) {
-    do {
-      let gateway = try Hotspot.gatewayAddress()
-      var proxyAnswers = false
-      if let fd = try? TCP.connect(host: gateway, port: Self.phonePort, timeout: 1) {
-        close(fd)
-        proxyAnswers = true
-      }
-      let state = PhoneLinkDiagnosis.hotspot(
-        proxyAnswers: proxyAnswers,
-        isIPhoneHotspot: Hotspot.isIPhoneHotspot(),
-        isOnExpensiveWiFi: isOnExpensiveWiFi
-      )
-      return (state, gateway)
-    } catch {
-      return (.notFound, nil)
-    }
-  }
-
-  func connect() throws -> Int32 {
-    do {
-      return try connectUsingCache()
-    } catch {
-      refresh()
-      return try connectUsingCache()
-    }
-  }
-
-  private func connectUsingCache() throws -> Int32 {
-    let (deviceID, gateway) = lock.withLock { (usbDeviceID, hotspotGateway) }
-    if let deviceID {
-      return try USBMux.connect(deviceID: deviceID, port: Self.phonePort)
-    }
-    if let gateway {
-      return try TCP.connect(host: gateway, port: Self.phonePort, timeout: 3)
-    }
-    throw LinkError("iPhone not connected")
-  }
-}
-
 private extension PhoneForwarder.Preference {
   var diagnosisPreference: PhoneLinkDiagnosis.Preference {
     switch self {
@@ -263,11 +162,5 @@ private extension PhoneLinkDiagnosis.Transport {
     case .usb: .usb
     case .hotspot: .hotspot
     }
-  }
-}
-
-private extension PhoneLinkDiagnosis.USBState {
-  var answers: Bool {
-    if case .found(proxyAnswers: true) = self { true } else { false }
   }
 }
