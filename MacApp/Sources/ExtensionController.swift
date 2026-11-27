@@ -14,7 +14,26 @@ final class ExtensionController: NSObject {
   static let approvalSettingsURL = URL(string: "x-apple.systempreferences:com.apple.ExtensionsPreferences?extension-points")!
   private static let hasTurnedOnKey = "hasTurnedOn"
 
-  private(set) var status = "Off"
+  enum Status {
+    case off, on, turningOn, turningOff, removingExtension, error(String)
+
+    var title: String {
+      switch self {
+      case .off: String(localized: "Off")
+      case .on: String(localized: "On")
+      case .turningOn: String(localized: "Turning on…")
+      case .turningOff: String(localized: "Turning off…")
+      case .removingExtension: String(localized: "Removing extension…")
+      case let .error(message): String(localized: "Error: \(message)")
+      }
+    }
+
+    var isError: Bool {
+      if case .error = self { true } else { false }
+    }
+  }
+
+  private(set) var status = Status.off
   private(set) var isRunning = false
   private(set) var isExtensionInstalled = false
   /// Whether macOS holds the extension until the user allows it in System Settings.
@@ -46,7 +65,7 @@ final class ExtensionController: NSObject {
   /// Turns capture off, deletes both proxy configurations, and uninstalls the system extension.
   func removeExtension() async {
     await loading?.value
-    status = "Removing extension…"
+    status = .removingExtension
     manager?.connection.stopVPNTunnel()
     try? await manager?.removeFromPreferences()
     manager = nil
@@ -149,7 +168,7 @@ final class ExtensionController: NSObject {
       try manager.connection.startVPNTunnel()
       try await setDNSProxyEnabled(true)
     } catch {
-      status = "Error: \(error.localizedDescription)"
+      status = .error(error.localizedDescription)
     }
   }
 
@@ -185,11 +204,11 @@ final class ExtensionController: NSObject {
     isRunning = connectionStatus == .connected || connectionStatus == .connecting
     switch connectionStatus {
     case .connected:
-      status = "On"
+      status = .on
       hasTurnedOn = true
-    case .connecting: status = "Turning on…"
-    case .disconnecting: status = "Turning off…"
-    default: if !status.hasPrefix("Error"), !status.hasPrefix("Install") { status = "Off" }
+    case .connecting: status = .turningOn
+    case .disconnecting: status = .turningOff
+    default: if !status.isError { status = .off }
     }
   }
 }
@@ -236,7 +255,7 @@ extension ExtensionController: OSSystemExtensionRequestDelegate {
       isRemoving = false
       isWatchingApproval = false
       needsApproval = false
-      status = "Error: \(error.localizedDescription)"
+      status = .error(error.localizedDescription)
       ApprovalGuide.close(approved: false)
     }
   }

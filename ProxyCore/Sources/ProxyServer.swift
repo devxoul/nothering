@@ -59,7 +59,7 @@ public final class ProxyServer {
     let underlying: Error
 
     public var errorDescription: String? {
-      "Proxy listener failed: \(underlying.localizedDescription)"
+      String(localized: "Proxy listener failed: \(underlying.localizedDescription)")
     }
   }
 

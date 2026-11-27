@@ -1,4 +1,5 @@
 import AVFoundation
+import Foundation
 import Synchronization
 
 /// Ambient noise played while the proxy runs.
@@ -18,10 +19,10 @@ enum FocusSound: String, CaseIterable, Identifiable {
 
   var title: String {
     switch self {
-    case .off: "Off"
-    case .white: "White noise"
-    case .pink: "Pink noise"
-    case .brown: "Brown noise"
+    case .off: String(localized: "Off")
+    case .white: String(localized: "White noise")
+    case .pink: String(localized: "Pink noise")
+    case .brown: String(localized: "Brown noise")
     }
   }
 }

@@ -314,25 +314,27 @@ private struct ThroughputView: View {
   }
 
   var body: some View {
+    let upload = String(localized: "Upload")
+    let download = String(localized: "Download")
     VStack(spacing: 12) {
       HStack(spacing: 16) {
-        SpeedLabel(title: "Upload", symbol: "arrow.up", color: .orange, bytesPerSecond: current?.up ?? 0)
+        SpeedLabel(title: upload, symbol: "arrow.up", color: .orange, bytesPerSecond: current?.up ?? 0)
         Divider()
-        SpeedLabel(title: "Download", symbol: "arrow.down", color: .blue, bytesPerSecond: current?.down ?? 0)
+        SpeedLabel(title: download, symbol: "arrow.down", color: .blue, bytesPerSecond: current?.down ?? 0)
       }
       .fixedSize(horizontal: false, vertical: true)
 
       Chart(samples) { sample in
         AreaMark(x: .value("Time", sample.id), y: .value("Bytes/s", sample.down))
-          .foregroundStyle(by: .value("Direction", "Download"))
+          .foregroundStyle(by: .value("Direction", download))
           .interpolationMethod(.monotone)
         AreaMark(x: .value("Time", sample.id), y: .value("Bytes/s", sample.up))
-          .foregroundStyle(by: .value("Direction", "Upload"))
+          .foregroundStyle(by: .value("Direction", upload))
           .interpolationMethod(.monotone)
       }
       .chartForegroundStyleScale([
-        "Download": Color.blue.opacity(0.5),
-        "Upload": Color.orange.opacity(0.5),
+        download: Color.blue.opacity(0.5),
+        upload: Color.orange.opacity(0.5),
       ])
       .chartXScale(domain: xDomain)
       .chartXAxis(.hidden)

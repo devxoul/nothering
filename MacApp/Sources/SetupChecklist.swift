@@ -14,32 +14,43 @@ struct SetupChecklist: View {
 
   var isComplete: Bool { isExtensionInstalled && isPhoneConnected && isProxyRunning }
 
+  private var connectionTitle: String {
+    if let connectionMethod {
+      return String(localized: "iPhone connected (\(connectionMethod))")
+    }
+    return String(localized: "iPhone connected")
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       extensionStep
       Step(
-        title: connectionMethod.map { "iPhone connected (\($0))" } ?? "iPhone connected",
+        title: connectionTitle,
         status: isPhoneConnected ? .done : .pending,
-        explanation: proxyHint ?? "Connect by USB or join its Personal Hotspot"
+        explanation: proxyHint ?? String(localized: "Connect by USB or join its Personal Hotspot")
       )
       Step(
-        title: "Proxy running on iPhone",
+        title: String(localized: "Proxy running on iPhone"),
         status: isProxyRunning ? .done : .pending,
-        explanation: isPhoneConnected ? proxyHint ?? "Open Nothering on your iPhone and tap Start Proxy" : nil
+        explanation: isPhoneConnected ? proxyHint ?? String(localized: "Open Nothering on your iPhone and tap Start Proxy") : nil
       )
     }
   }
 
   private var extensionStep: Step {
     if isExtensionInstalled {
-      return Step(title: "Extension approved", status: .done, action: ("Remove Extension…", removeExtension))
+      return Step(
+        title: String(localized: "Extension approved"),
+        status: .done,
+        action: (String(localized: "Remove Extension…"), removeExtension)
+      )
     }
     // Closes the panel first; it would otherwise cover System Settings and the guide.
     return Step(
-      title: "Approve the extension",
+      title: String(localized: "Approve the extension"),
       status: .actionNeeded,
-      explanation: "Turn on Nothering in System Settings. We'll show you where.",
-      action: ("Approve…", { dismiss(); approveExtension() })
+      explanation: String(localized: "Turn on Nothering in System Settings. We'll show you where."),
+      action: (String(localized: "Approve…"), { dismiss(); approveExtension() })
     )
   }
 }
@@ -49,7 +60,7 @@ extension SetupChecklist {
     self.init(
       isExtensionInstalled: controller.isExtensionInstalled,
       isPhoneConnected: forwarder.detected != .none || forwarder.link != .none,
-      connectionMethod: [forwarder.link, forwarder.detected].first { $0 != .none }?.rawValue,
+      connectionMethod: [forwarder.link, forwarder.detected].first { $0 != .none }?.title,
       isProxyRunning: forwarder.link != .none,
       proxyHint: forwarder.hint,
       approveExtension: controller.approveExtension,

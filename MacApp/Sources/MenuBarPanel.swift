@@ -65,7 +65,7 @@ struct MenuBarPanel: View {
           Text(subtitle)
             .font(.subheadline)
             .monospacedDigit()
-            .foregroundStyle(controller.status.hasPrefix("Error") ? .red : .secondary)
+            .foregroundStyle(controller.status.isError ? .red : .secondary)
             .lineLimit(3)
         }
         Spacer()
@@ -91,8 +91,9 @@ struct MenuBarPanel: View {
   }
 
   private var subtitle: String {
-    guard controller.isRunning, forwarder.link != .none else { return controller.status }
-    return "\(controller.status) via \(forwarder.link.rawValue) · \(Self.describe(forwarder.stats))"
+    let status = controller.status.title
+    guard controller.isRunning, forwarder.link != .none else { return status }
+    return String(localized: "\(status) via \(forwarder.link.title) · \(Self.describe(forwarder.stats))")
   }
 
   private var settings: some View {
@@ -101,7 +102,7 @@ struct MenuBarPanel: View {
         Text("Connect iPhone via")
         Spacer()
         Picker("Connect iPhone via", selection: $forwarder.preference) {
-          ForEach(PhoneForwarder.Preference.allCases, id: \.self) { Text($0.rawValue) }
+          ForEach(PhoneForwarder.Preference.allCases, id: \.self) { Text($0.title) }
         }
         .pickerStyle(.menu)
         .labelsHidden()

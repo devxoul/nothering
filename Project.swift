@@ -186,6 +186,7 @@ let project = Project(
         ],
       ]) { $1 }),
       sources: ["MacProxy/Sources/**"],
+      resources: .resources(["MacProxy/Resources/InfoPlist.xcstrings"]),
       entitlements: "MacProxy/Proxy.entitlements",
       scripts: [
         .post(

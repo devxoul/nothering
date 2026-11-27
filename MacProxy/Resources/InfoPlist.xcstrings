@@ -1,0 +1,28 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "NSSystemExtensionUsageDescription" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothering routes your Mac's network connections through your iPhone."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notheringは、Macのネットワーク接続をiPhone経由で中継します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothering은 Mac의 네트워크 연결을 iPhone으로 전달합니다."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}
