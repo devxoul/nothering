@@ -1,0 +1,28 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "NSLocalNetworkUsageDescription" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothering accepts proxy connections from devices on your Personal Hotspot."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notheringは、このiPhoneのインターネット共有を使うデバイスからプロキシ接続を受け付けます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothering은 개인용 핫스팟에 접속한 기기의 프록시 연결을 받습니다."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

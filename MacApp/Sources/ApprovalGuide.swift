@@ -71,7 +71,7 @@ enum ApprovalGuide {
       backing: .buffered,
       defer: false
     )
-    panel.title = "Allow Nothering"
+    panel.title = String(localized: "Allow Nothering")
     panel.level = .floating
     panel.hidesOnDeactivate = false
     panel.isReleasedWhenClosed = false

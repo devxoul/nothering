@@ -14,6 +14,10 @@ final class PhoneForwarder {
     case usb = "USB"
     case hotspot = "Hotspot"
     case none = "Not connected"
+
+    var title: String {
+      Bundle.main.localizedString(forKey: rawValue, value: rawValue, table: nil)
+    }
   }
 
   /// Which link to use; `auto` prefers USB and falls back to the hotspot.
@@ -21,6 +25,10 @@ final class PhoneForwarder {
     case auto = "Auto"
     case usb = "USB"
     case hotspot = "Hotspot"
+
+    var title: String {
+      Bundle.main.localizedString(forKey: rawValue, value: rawValue, table: nil)
+    }
   }
 
   private static let preferenceKey = "linkPreference"
@@ -72,7 +80,7 @@ final class PhoneForwarder {
       _ = try forwarder.start()
       self.forwarder = forwarder
     } catch {
-      self.error = "Forwarder: \(error.localizedDescription)"
+      self.error = String(localized: "Forwarder: \(error.localizedDescription)")
     }
     refreshLink()
     monitor = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
@@ -105,7 +113,7 @@ final class PhoneForwarder {
         let isReachable = result.link != .none
         self.link = result.link
         self.detected = result.detected
-        self.hint = result.hint
+        self.hint = result.hint.map { Bundle.main.localizedString(forKey: $0, value: $0, table: nil) }
         self.trackPhoneProxy(previousLink: previousLink)
         if self.autoTurnOn, wasReachable != isReachable {
           self.onAutoTurnOn?(isReachable)
