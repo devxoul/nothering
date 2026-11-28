@@ -121,6 +121,7 @@ public final class ProxyServer {
       return
     }
     logger.info("accepted client on interface \(interface, privacy: .public)")
+    enableKeepalive(fd)
     let session = Session(client: SocketStream(fd: fd, queue: queue), server: self)
     let link = Link(interface: interface)
     sessions[ObjectIdentifier(session)] = (session, link)
@@ -137,6 +138,23 @@ public final class ProxyServer {
       break
     }
     session.start()
+  }
+
+  /// A Mac that leaves the hotspot without a FIN would otherwise leave its sessions, sockets and upstream
+  /// connections open for as long as the proxy runs. Probing an idle client fails such a session in about 90 seconds.
+  private func enableKeepalive(_ fd: Int32) {
+    let options: [(name: String, level: Int32, option: Int32, value: Int32)] = [
+      ("SO_KEEPALIVE", SOL_SOCKET, SO_KEEPALIVE, 1),
+      ("TCP_KEEPALIVE", IPPROTO_TCP, TCP_KEEPALIVE, 60),
+      ("TCP_KEEPINTVL", IPPROTO_TCP, TCP_KEEPINTVL, 10),
+      ("TCP_KEEPCNT", IPPROTO_TCP, TCP_KEEPCNT, 3),
+    ]
+    for (name, level, option, value) in options {
+      var value = value
+      guard setsockopt(fd, level, option, &value, socklen_t(MemoryLayout<Int32>.size)) != 0 else { continue }
+      // The session still works without it; it just isn't reaped if its client vanishes.
+      logger.error("setting \(name, privacy: .public) failed: \(String(cString: strerror(errno)), privacy: .public)")
+    }
   }
 
   // MARK: Session callbacks (always on `queue`)
