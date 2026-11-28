@@ -1,3 +1,3 @@
-Mac: sites reached through Tailscale (subnet routes, app connectors, exit nodes) now stay on Tailscale instead of going through the iPhone. DNS also keeps working when a public resolver can't be reached from the iPhone.
-iPhone: connections to destinations that never answer now give up after 15 seconds.
-Start the proxy, turn on capture on the Mac, and check that browsing still works. If you use Tailscale, check that sites behind its routes still load.
+iPhone: uses less battery while the proxy runs in the background, with the focus sound on or off.
+iPhone: connections left behind by a Mac that drops off the Personal Hotspot without disconnecting now close after about 90 seconds.
+Start the proxy, lock the iPhone and leave it running for a while, then check that browsing from the Mac still works and stays fast.

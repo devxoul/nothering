@@ -1,1 +1,1 @@
-Bug fixes and improvements.
+Nothering now uses less battery while the proxy runs in the background.
