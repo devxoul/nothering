@@ -47,7 +47,7 @@ final class ProxyController {
   private static let wasRunningKey = "wasRunning"
   private static let usageKey = "usageLog"
   private static let sessionUsageKey = "sessionUsage"
-  /// Saving every tick would rewrite defaults each second; a crash loses at most this many seconds.
+  /// Saving every tick would rewrite defaults each second; a crash loses at most this many seconds of traffic.
   private static let usageSaveInterval = 10
   private var unsavedUsageTicks = 0
 
@@ -148,6 +148,8 @@ final class ProxyController {
     let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
       MainActor.assumeIsolated { self?.refreshStats() }
     }
+    // Lets iOS coalesce the wakeup with others, since the app runs this all day in the background.
+    timer.tolerance = 0.1
     RunLoop.main.add(timer, forMode: .common)
     statsTimer = timer
     terminationAlert.arm()
@@ -174,8 +176,12 @@ final class ProxyController {
     terminationAlert.refresh()
     let previous = stats
     stats = server.currentStats()
+    let hasTraffic = stats.bytesUp != previous.bytesUp || stats.bytesDown != previous.bytesDown
     record(up: stats.bytesUp &- previous.bytesUp, down: stats.bytesDown &- previous.bytesDown)
-    unsavedUsageTicks += 1
+    // Counts from the first unsaved traffic, so an idle proxy doesn't write to disk at all.
+    if hasTraffic || unsavedUsageTicks > 0 {
+      unsavedUsageTicks += 1
+    }
     if unsavedUsageTicks >= Self.usageSaveInterval {
       saveUsage()
     }
