@@ -154,14 +154,15 @@ private struct StatusCard: View {
     VStack(spacing: 16) {
       ZStack {
         PulseRing(shape: tile, color: Self.accent, startedAt: controller.startedAt)
+        // On the image only: a shadow over the ring would be blurred again on every frame of the pulse.
         Image(.hero)
           .resizable()
           .scaledToFit()
           .saturation(controller.isRunning ? 1 : 0)
           .opacity(controller.isRunning ? 1 : 0.55)
+          .shadow(color: controller.isRunning ? Self.accent.opacity(0.45) : .black.opacity(0.15), radius: controller.isRunning ? 24 : 8, y: 6)
       }
       .frame(width: 128, height: 128)
-      .shadow(color: controller.isRunning ? Self.accent.opacity(0.45) : .black.opacity(0.15), radius: controller.isRunning ? 24 : 8, y: 6)
       .accessibilityHidden(true)
 
       VStack(spacing: 4) {
@@ -249,9 +250,11 @@ private struct PulseRing: View {
   let startedAt: Date?
 
   private static let period = 1.6
+  /// A soft fading ring needs no more, and it runs whenever the app is open with the proxy on.
+  private static let frameInterval = 1.0 / 30
 
   var body: some View {
-    TimelineView(.animation(paused: startedAt == nil)) { context in
+    TimelineView(.animation(minimumInterval: Self.frameInterval, paused: startedAt == nil)) { context in
       let progress = progress(at: context.date)
       shape
         .stroke(color, lineWidth: 3)

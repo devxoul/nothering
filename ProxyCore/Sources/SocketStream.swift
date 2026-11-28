@@ -89,14 +89,18 @@ final class SocketStream: ByteStream {
   // MARK: Reading
 
   private func readAvailable() {
-    var chunk = [UInt8](repeating: 0, count: Self.chunkSize)
-    let count = Darwin.read(fd, &chunk, chunk.count)
-    if count > 0 {
-      readBuffer.append(chunk, count: count)
-    } else if count == 0 {
+    // The source reports how many bytes are waiting, so a small read doesn't allocate and zero a whole
+    // chunk, and the bytes land in the buffer without an intermediate copy.
+    let capacity = min(max(Int(readSource.data), 1), Self.chunkSize)
+    let start = readBuffer.count
+    readBuffer.count += capacity
+    let count = readBuffer.withUnsafeMutableBytes { Darwin.read(fd, $0.baseAddress! + start, capacity) }
+    let code = errno
+    readBuffer.count = start + max(count, 0)
+    if count == 0 {
       reachedEOF = true
-    } else if errno != EAGAIN, errno != EINTR {
-      readError = SocketError("read")
+    } else if count < 0, code != EAGAIN, code != EINTR {
+      readError = SocketError("read", code: code)
     }
 
     fulfillPendingRead()
@@ -120,10 +124,19 @@ final class SocketStream: ByteStream {
       }
       guard readBuffer.count >= request.minimum || reachedEOF else { return }
 
-      let chunk = readBuffer.prefix(request.maximum)
-      readBuffer.removeFirst(chunk.count)
+      let count = min(request.maximum, readBuffer.count)
+      let chunk: Data
+      if count == readBuffer.count {
+        // Hands the whole buffer over instead of copying it out.
+        chunk = readBuffer
+        readBuffer = Data()
+      } else {
+        // A copy, so removing the prefix doesn't force a copy-on-write of the rest of the buffer.
+        chunk = readBuffer.subdata(in: readBuffer.startIndex..<readBuffer.startIndex + count)
+        readBuffer.removeFirst(count)
+      }
       pendingRead = nil
-      request.completion(chunk.isEmpty ? nil : Data(chunk), reachedEOF && readBuffer.isEmpty, nil)
+      request.completion(chunk.isEmpty ? nil : chunk, reachedEOF && readBuffer.isEmpty, nil)
     }
   }
 
