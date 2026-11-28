@@ -103,6 +103,8 @@ final class BackgroundKeeper {
   private func activate() throws {
     let session = AVAudioSession.sharedInstance()
     try session.setCategory(.playback, options: .mixWithOthers)
+    // Latency doesn't matter for background noise, and bigger buffers wake the render thread less often.
+    try? session.setPreferredIOBufferDuration(0.1)
     try session.setActive(true)
     try engine.start()
   }
@@ -114,6 +116,9 @@ private final class NoiseGenerator: @unchecked Sendable {
   /// Filter state, only touched on the render thread.
   private var pink: (Float, Float, Float, Float, Float, Float, Float) = (0, 0, 0, 0, 0, 0, 0)
   private var brown: Float = 0
+  /// xorshift32 state, also render-thread only. `Float.random` goes through the system generator, which
+  /// is too slow to call for every sample and takes a lock, which a render thread must not.
+  private var seed: UInt32 = 0x9E37_79B9
 
   /// Kept low so the noise sits in the background instead of masking everything else.
   private static let gain: Float = 0.15
@@ -140,7 +145,10 @@ private final class NoiseGenerator: @unchecked Sendable {
   }
 
   private func next(_ sound: FocusSound) -> Float {
-    let white = Float.random(in: -1...1)
+    seed ^= seed << 13
+    seed ^= seed >> 17
+    seed ^= seed << 5
+    let white = Float(Int32(bitPattern: seed)) * 0x1p-31
     switch sound {
     case .off:
       return 0
